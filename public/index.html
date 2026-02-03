@@ -1,552 +1,444 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 
 <head>
-    <meta name="viewport"
-        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="mobile-web-app-capable" content="yes">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Магический Bomberman</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
         }
 
         body {
-            overflow: hidden;
-            background: #000;
             font-family: 'Arial', sans-serif;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        #gameContainer {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
+            background: linear-gradient(135deg, #0a0a2a 0%, #1a1a40 100%);
+            color: #fff;
+            overflow: hidden;
             height: 100vh;
         }
 
-        /* Canvas */
-        #canvas {
-            display: block;
+        #game-container {
+            position: relative;
             width: 100%;
             height: 100%;
+            display: flex;
+            flex-direction: column;
         }
 
-        /* Header - одна строка */
-        #header {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 50px;
-            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.7));
-            border-bottom: 2px solid gold;
+        /* Верхняя панель */
+        #top-panel {
+            background: rgba(20, 20, 60, 0.95);
+            padding: 10px 20px;
             display: flex;
-            align-items: center;
             justify-content: space-between;
-            padding: 0 15px;
-            z-index: 100;
+            align-items: center;
+            border-bottom: 2px solid #ffd700;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            z-index: 100;
+            flex-shrink: 0;
         }
 
-        /* Никнейм с редактированием */
-        #nicknameContainer {
+        .player-info {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 20px;
         }
 
-        #nicknameDisplay {
-            color: gold;
+        .nickname {
+            font-size: 18px;
             font-weight: bold;
-            font-size: 16px;
+            color: #ffd700;
             cursor: pointer;
             padding: 5px 10px;
             border-radius: 5px;
+            transition: background 0.3s;
+        }
+
+        .nickname:hover {
             background: rgba(255, 215, 0, 0.1);
         }
 
-        #nicknameDisplay.editing {
-            background: rgba(255, 255, 255, 0.2);
-        }
-
-        #nicknameEditBtn {
-            background: none;
-            border: none;
-            color: gold;
-            font-size: 14px;
-            cursor: pointer;
+        .nickname-input {
+            background: transparent;
+            border: 2px solid #ffd700;
+            color: #ffd700;
+            font-size: 18px;
             padding: 5px;
-            border-radius: 50%;
+            border-radius: 5px;
+            width: 150px;
         }
 
-        #nicknameEditBtn:hover {
-            background: rgba(255, 215, 0, 0.2);
-        }
-
-        /* HP и щит */
-        #healthContainer {
+        .health,
+        .shield,
+        .score {
             display: flex;
             align-items: center;
-            gap: 15px;
-        }
-
-        .hp-bar {
-            width: 120px;
-            height: 20px;
-            background: rgba(255, 0, 0, 0.3);
-            border-radius: 10px;
-            overflow: hidden;
-            border: 2px solid #333;
-            position: relative;
-        }
-
-        .hp-fill {
-            height: 100%;
-            background: linear-gradient(to right, #ff0000, #ff4400);
-            transition: width 0.3s;
-        }
-
-        .shield-fill {
-            height: 100%;
-            background: linear-gradient(to right, #00aaff, #0088ff);
-            position: absolute;
-            top: 0;
-            left: 0;
-        }
-
-        .hp-text {
-            position: absolute;
-            width: 100%;
-            text-align: center;
-            color: white;
-            font-size: 12px;
-            font-weight: bold;
-            line-height: 20px;
-            text-shadow: 1px 1px 2px black;
-        }
-
-        /* Счет и кнопка сброса */
-        #scoreContainer {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        #scoreDisplay {
-            color: white;
+            gap: 5px;
             font-size: 16px;
-            font-weight: bold;
-            min-width: 80px;
         }
 
-        #resetBtn {
-            background: linear-gradient(to bottom, #ff4444, #cc0000);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            padding: 6px 12px;
-            font-size: 14px;
-            font-weight: bold;
-            cursor: pointer;
-            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+        .health span,
+        .shield span,
+        .score span {
+            margin-left: 5px;
         }
 
-        #resetBtn:active {
-            transform: scale(0.95);
+        /* Игровое поле */
+        #game-field {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background: #1a1a4a;
         }
 
-        /* Кнопки управления */
-        #controlsContainer {
+        #game-canvas {
             position: absolute;
-            bottom: 20px;
-            left: 0;
-            width: 100%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        /* Нижняя панель управления */
+        #bottom-panel {
+            background: rgba(20, 20, 60, 0.95);
+            padding: 15px;
             display: flex;
             justify-content: space-between;
-            padding: 0 20px;
-            z-index: 90;
+            align-items: flex-start;
+            border-top: 2px solid #ffd700;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.5);
+            z-index: 100;
+            flex-shrink: 0;
         }
 
         /* Джостик */
+        #joystick-container {
+            position: relative;
+            width: 120px;
+            height: 120px;
+        }
+
         #joystick {
+            width: 100%;
+            height: 100%;
+            background: rgba(40, 40, 80, 0.8);
+            border: 3px solid #ffd700;
+            border-radius: 50%;
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             grid-template-rows: repeat(3, 1fr);
-            gap: 8px;
-            width: 150px;
-            height: 150px;
+            gap: 5px;
+            padding: 10px;
         }
 
         .joystick-btn {
-            background: rgba(255, 255, 255, 0.85);
-            border: 3px solid gold;
-            border-radius: 15px;
+            background: rgba(60, 60, 100, 0.9);
+            border: 2px solid #ffd700;
+            border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 20px;
             font-weight: bold;
-            color: #333;
+            font-size: 14px;
+            color: #ffd700;
             cursor: pointer;
-            user-select: none;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
             transition: all 0.1s;
         }
 
-        .joystick-btn:active,
-        .joystick-btn.active {
-            background: rgba(255, 215, 0, 0.9);
+        .joystick-btn:active {
+            background: rgba(255, 215, 0, 0.3);
             transform: scale(0.95);
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
         }
 
-        #btnUp {
-            grid-column: 2;
-            grid-row: 1;
-        }
-
-        #btnLeft {
-            grid-column: 1;
-            grid-row: 2;
-        }
-
-        #btnCenter {
-            grid-column: 2;
-            grid-row: 2;
-            background: rgba(255, 255, 255, 0.3);
+        .joystick-btn.center {
+            background: transparent;
             border: none;
         }
 
-        #btnDown {
-            grid-column: 2;
-            grid-row: 3;
-        }
-
-        #btnRight {
-            grid-column: 3;
-            grid-row: 2;
-        }
-
         /* Панель заклинаний */
-        #spellsPanel {
+        #spells-panel {
             display: flex;
-            flex-direction: column;
+            flex-direction: column-reverse;
             align-items: center;
             gap: 10px;
-            width: 80px;
-            max-height: 60vh;
+            max-height: 300px;
             overflow-y: auto;
-            overflow-x: hidden;
-            padding: 10px 5px;
-            background: rgba(0, 0, 0, 0.7);
-            border-radius: 15px;
-            border: 2px solid #444;
-            scrollbar-width: thin;
-            scrollbar-color: gold rgba(0, 0, 0, 0.5);
-        }
-
-        #spellsPanel::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        #spellsPanel::-webkit-scrollbar-track {
-            background: rgba(0, 0, 0, 0.5);
-            border-radius: 3px;
-        }
-
-        #spellsPanel::-webkit-scrollbar-thumb {
-            background: gold;
-            border-radius: 3px;
+            padding: 5px;
+            margin-right: 10px;
         }
 
         .spell-slot {
             width: 60px;
             height: 60px;
-            background: rgba(30, 30, 30, 0.9);
+            background: rgba(40, 40, 80, 0.8);
             border: 2px solid #555;
             border-radius: 10px;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            color: white;
-            font-size: 11px;
-            position: relative;
             cursor: pointer;
-            user-select: none;
-            transition: all 0.2s;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .spell-slot:hover {
+            border-color: #888;
         }
 
         .spell-slot.selected {
-            border-color: gold;
-            box-shadow: 0 0 15px gold;
+            border: 3px solid #ffd700;
             transform: scale(1.05);
         }
 
         .spell-slot.empty {
-            background: rgba(60, 60, 60, 0.7);
+            background: rgba(60, 60, 60, 0.6);
             font-size: 24px;
             color: #888;
         }
 
         .spell-icon {
-            font-size: 18px;
+            font-size: 20px;
             margin-bottom: 2px;
         }
 
         .spell-stats {
-            font-size: 9px;
-            opacity: 0.8;
+            font-size: 12px;
+            color: #aaa;
         }
 
-        /* Кнопка каста */
-        #castContainer {
+        .spell-index {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            font-size: 10px;
+            color: #ffd700;
+        }
+
+        /* Кнопка CAST */
+        #cast-container {
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 15px;
+            gap: 10px;
         }
 
-        #castButton {
+        #cast-button {
             width: 80px;
             height: 80px;
             background: radial-gradient(circle at 30% 30%, #ff4444, #cc0000);
-            border: 4px solid #ff9900;
+            border: 4px solid #ffd700;
             border-radius: 50%;
             color: white;
-            font-size: 16px;
             font-weight: bold;
+            font-size: 16px;
             cursor: pointer;
-            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
-            transition: all 0.1s;
-            user-select: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            box-shadow: 0 4px 15px rgba(255, 0, 0, 0.4);
         }
 
-        #castButton:active {
+        #cast-button:active {
             transform: scale(0.95);
-            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 2px 8px rgba(255, 0, 0, 0.6);
         }
 
-        #castHint {
-            color: white;
+        #cast-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .cast-hint {
             font-size: 12px;
-            opacity: 0.7;
+            color: #aaa;
+            text-align: center;
         }
 
-        /* Модальное окно настройки заклинания */
-        .modal-overlay {
+        /* Модальные окна */
+        .modal {
+            display: none;
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
             background: rgba(0, 0, 0, 0.8);
-            display: flex;
-            align-items: center;
-            justify-content: center;
             z-index: 1000;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s;
+            justify-content: center;
+            align-items: center;
         }
 
-        .modal-overlay.active {
-            opacity: 1;
-            visibility: visible;
+        .modal.active {
+            display: flex;
         }
 
         .modal-content {
-            background: linear-gradient(to bottom, #222, #111);
-            border: 3px solid gold;
-            border-radius: 20px;
-            padding: 25px;
-            color: white;
-            width: 90%;
-            max-width: 400px;
+            background: linear-gradient(135deg, #1a1a40 0%, #0a0a2a 100%);
+            border: 3px solid #ffd700;
+            border-radius: 15px;
+            padding: 30px;
+            min-width: 300px;
+            max-width: 90%;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
         }
 
-        .modal-title {
-            text-align: center;
+        .modal h2 {
+            color: #ffd700;
             margin-bottom: 20px;
-            color: gold;
-            font-size: 22px;
+            text-align: center;
         }
 
-        .config-slider-container {
+        .spell-option {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px;
+            margin: 10px 0;
+            background: rgba(40, 40, 80, 0.6);
+            border: 2px solid #555;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .spell-option:hover {
+            border-color: #ffd700;
+            background: rgba(60, 60, 100, 0.8);
+        }
+
+        .spell-option-icon {
+            font-size: 24px;
+        }
+
+        .spell-option-name {
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .spell-option-desc {
+            font-size: 12px;
+            color: #aaa;
+            margin-top: 5px;
+        }
+
+        /* Окно настройки заклинания */
+        .slider-container {
             margin: 20px 0;
         }
 
-        .config-slider {
+        .slider-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .slider {
             width: 100%;
             height: 30px;
             -webkit-appearance: none;
+            appearance: none;
             background: linear-gradient(to right, #00aaff, #ffaa00);
             border-radius: 15px;
             outline: none;
         }
 
-        .config-slider::-webkit-slider-thumb {
+        .slider::-webkit-slider-thumb {
             -webkit-appearance: none;
+            appearance: none;
             width: 40px;
             height: 40px;
-            background: gold;
+            background: #ffd700;
             border-radius: 50%;
             cursor: pointer;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            border: 3px solid white;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
         }
 
-        .config-values {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 10px;
-            font-size: 14px;
+        .slider-value {
+            text-align: center;
+            font-size: 18px;
+            margin: 10px 0;
+            color: #ffd700;
         }
 
-        .config-buttons {
+        .button-group {
             display: flex;
             justify-content: space-between;
+            margin-top: 20px;
             gap: 10px;
-            margin-top: 25px;
         }
 
-        .modal-btn {
-            flex: 1;
-            padding: 12px;
+        .btn {
+            padding: 10px 20px;
             border: none;
-            border-radius: 10px;
+            border-radius: 5px;
             font-weight: bold;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.3s;
+            flex: 1;
         }
 
-        .modal-btn.primary {
-            background: linear-gradient(to bottom, gold, #ffaa00);
-            color: #333;
-        }
-
-        .modal-btn.secondary {
-            background: linear-gradient(to bottom, #444, #222);
+        .btn-save {
+            background: linear-gradient(to bottom, #00cc00, #009900);
             color: white;
-            border: 2px solid #666;
         }
 
-        .modal-btn.danger {
+        .btn-delete {
             background: linear-gradient(to bottom, #ff4444, #cc0000);
             color: white;
         }
 
-        .modal-btn:active {
-            transform: scale(0.95);
+        .btn-cancel {
+            background: linear-gradient(to bottom, #666, #444);
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Анимации */
+        @keyframes casting {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .casting-ring {
+            position: absolute;
+            width: 70px;
+            height: 70px;
+            border: 5px solid transparent;
+            border-top-color: #00ffff;
+            border-radius: 50%;
+            animation: casting 1s linear infinite;
         }
 
         /* Адаптивность */
         @media (max-width: 768px) {
-            #header {
-                height: 45px;
-                padding: 0 10px;
+            .player-info {
+                flex-wrap: wrap;
+                gap: 10px;
             }
 
-            #nicknameDisplay {
-                font-size: 14px;
-            }
-
-            .hp-bar {
+            #joystick-container {
                 width: 100px;
-                height: 18px;
-            }
-
-            .hp-text {
-                font-size: 11px;
-                line-height: 18px;
-            }
-
-            #scoreDisplay {
-                font-size: 14px;
-                min-width: 70px;
-            }
-
-            #resetBtn {
-                padding: 5px 10px;
-                font-size: 13px;
-            }
-
-            #joystick {
-                width: 140px;
-                height: 140px;
-            }
-
-            .joystick-btn {
-                font-size: 18px;
-            }
-
-            #spellsPanel {
-                width: 70px;
-            }
-
-            .spell-slot {
-                width: 55px;
-                height: 55px;
-                font-size: 10px;
-            }
-
-            .spell-icon {
-                font-size: 16px;
-            }
-
-            #castButton {
-                width: 70px;
-                height: 70px;
-                font-size: 15px;
-            }
-        }
-
-        @media (max-width: 480px) {
-            #header {
-                height: 40px;
-            }
-
-            #nicknameDisplay {
-                font-size: 13px;
-                padding: 4px 8px;
-            }
-
-            .hp-bar {
-                width: 80px;
-                height: 16px;
-            }
-
-            .hp-text {
-                font-size: 10px;
-                line-height: 16px;
-            }
-
-            #scoreDisplay {
-                font-size: 13px;
-                min-width: 60px;
-            }
-
-            #resetBtn {
-                padding: 4px 8px;
-                font-size: 12px;
-            }
-
-            #controlsContainer {
-                padding: 0 10px;
-            }
-
-            #joystick {
-                width: 130px;
-                height: 130px;
-            }
-
-            #spellsPanel {
-                width: 65px;
+                height: 100px;
             }
 
             .spell-slot {
@@ -554,731 +446,829 @@
                 height: 50px;
             }
 
-            #castButton {
-                width: 65px;
-                height: 65px;
+            .spell-icon {
+                font-size: 16px;
+            }
+
+            .spell-stats {
+                font-size: 10px;
+            }
+
+            #cast-button {
+                width: 70px;
+                height: 70px;
                 font-size: 14px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            #top-panel {
+                padding: 5px 10px;
+            }
+
+            #bottom-panel {
+                padding: 10px;
+            }
+
+            .nickname {
+                font-size: 14px;
+            }
+
+            .health,
+            .shield,
+            .score {
+                font-size: 12px;
+            }
+
+            #joystick-container {
+                width: 80px;
+                height: 80px;
+            }
+
+            .joystick-btn {
+                font-size: 12px;
+            }
+
+            .spell-slot {
+                width: 45px;
+                height: 45px;
             }
         }
     </style>
 </head>
 
 <body>
-    <div id="gameContainer">
-        <canvas id="canvas"></canvas>
-
-        <!-- Шапка -->
-        <div id="header">
-            <div id="nicknameContainer">
-                <div id="nicknameDisplay" contenteditable="false">Loading...</div>
-                <button id="nicknameEditBtn" title="Edit nickname">✏️</button>
-            </div>
-
-            <div id="healthContainer">
-                <div class="hp-bar">
-                    <div class="shield-fill" id="shieldFill"></div>
-                    <div class="hp-fill" id="hpFill"></div>
-                    <div class="hp-text" id="hpText">100/100</div>
-                </div>
-            </div>
-
-            <div id="scoreContainer">
-                <div id="scoreDisplay">Score: 0</div>
-                <button id="resetBtn" title="Reset field">🔄</button>
+    <div id="game-container">
+        <!-- Верхняя панель -->
+        <div id="top-panel">
+            <div class="player-info">
+                <div id="nickname-display" class="nickname">Игрок</div>
+                <div class="health">❤️ <span id="health">10/10</span></div>
+                <div class="shield">🛡️ <span id="shield">0</span></div>
+                <div class="score">🏆 <span id="score">0</span></div>
             </div>
         </div>
 
-        <!-- Управление -->
-        <div id="controlsContainer">
-            <!-- Джостик -->
-            <div id="joystick">
-                <div class="joystick-btn" id="btnUp" data-key="up">↑</div>
-                <div class="joystick-btn" id="btnLeft" data-key="left">←</div>
-                <div class="joystick-btn" id="btnCenter"></div>
-                <div class="joystick-btn" id="btnDown" data-key="down">↓</div>
-                <div class="joystick-btn" id="btnRight" data-key="right">→</div>
-            </div>
+        <!-- Игровое поле -->
+        <div id="game-field">
+            <canvas id="game-canvas"></canvas>
+        </div>
 
-            <!-- Кнопка каста -->
-            <div id="castContainer">
-                <button id="castButton">CAST</button>
-                <div id="castHint">SPACE</div>
+        <!-- Нижняя панель управления -->
+        <div id="bottom-panel">
+            <!-- Джостик -->
+            <div id="joystick-container">
+                <div id="joystick">
+                    <div class="joystick-btn center"></div>
+                    <div class="joystick-btn up" data-direction="up">↑</div>
+                    <div class="joystick-btn center"></div>
+                    <div class="joystick-btn left" data-direction="left">←</div>
+                    <div class="joystick-btn center"></div>
+                    <div class="joystick-btn right" data-direction="right">→</div>
+                    <div class="joystick-btn center"></div>
+                    <div class="joystick-btn down" data-direction="down">↓</div>
+                    <div class="joystick-btn center"></div>
+                </div>
             </div>
 
             <!-- Панель заклинаний -->
-            <div id="spellsPanel">
-                <div class="spell-slot empty" data-index="0">+</div>
-                <div class="spell-slot empty" data-index="1">+</div>
-                <div class="spell-slot empty" data-index="2">+</div>
-                <div class="spell-slot empty" data-index="3">+</div>
-                <div class="spell-slot empty" data-index="4">+</div>
-                <div class="spell-slot empty" data-index="5">+</div>
-                <div class="spell-slot empty" data-index="6">+</div>
-                <div class="spell-slot empty" data-index="7">+</div>
+            <div id="spells-panel">
+                <!-- Слоты заклинаний генерируются динамически -->
+            </div>
+
+            <!-- Кнопка CAST -->
+            <div id="cast-container">
+                <button id="cast-button">CAST</button>
+                <div class="cast-hint">SPACE</div>
             </div>
         </div>
+    </div>
 
-        <!-- Модальное окно настройки заклинания -->
-        <div id="spellConfigModal" class="modal-overlay">
-            <div class="modal-content">
-                <h2 class="modal-title" id="modalTitle">Configure Spell</h2>
-                <div id="spellTypeDisplay" style="text-align: center; margin-bottom: 20px; font-size: 18px;"></div>
-
-                <div class="config-slider-container">
-                    <input type="range" min="1" max="10" value="5" class="config-slider" id="spellConfigSlider">
-                    <div class="config-values">
-                        <span>Fast ⚡</span>
-                        <span id="configValues">Speed: 5 / Power: 5</span>
-                        <span>Strong 💪</span>
-                    </div>
+    <!-- Модальное окно выбора заклинания -->
+    <div id="spell-select-modal" class="modal">
+        <div class="modal-content">
+            <h2>Выберите заклинание</h2>
+            <div class="spell-option" data-type="water">
+                <div class="spell-option-icon">💧</div>
+                <div>
+                    <div class="spell-option-name">Водяной выстрел</div>
+                    <div class="spell-option-desc">Наносит урон по прямой. Урон уменьшается с расстоянием.</div>
                 </div>
-
-                <div class="config-buttons">
-                    <button class="modal-btn primary" id="saveSpellBtn">Save</button>
-                    <button class="modal-btn secondary" id="cancelSpellBtn">Cancel</button>
-                    <button class="modal-btn danger" id="deleteSpellBtn">Delete</button>
+            </div>
+            <div class="spell-option" data-type="shield">
+                <div class="spell-option-icon">🛡️</div>
+                <div>
+                    <div class="spell-option-name">Щит</div>
+                    <div class="spell-option-desc">Добавляет временные HP. Цель всегда - сам игрок.</div>
                 </div>
+            </div>
+            <div class="button-group">
+                <button class="btn btn-cancel" id="cancel-spell-select">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно настройки заклинания -->
+    <div id="spell-config-modal" class="modal">
+        <div class="modal-content">
+            <h2 id="config-spell-name">Настройка заклинания</h2>
+            <div class="slider-container">
+                <div class="slider-labels">
+                    <span>⚡ Быстро</span>
+                    <span>💪 Сильно</span>
+                </div>
+                <input type="range" min="1" max="10" value="6" class="slider" id="spell-slider">
+                <div class="slider-value">
+                    Скорость: <span id="speed-value">6</span> / Сила: <span id="power-value">5</span>
+                </div>
+            </div>
+            <div class="button-group">
+                <button class="btn btn-save" id="save-spell">Сохранить</button>
+                <button class="btn btn-delete" id="delete-spell">Удалить</button>
+                <button class="btn btn-cancel" id="cancel-spell-config">Отмена</button>
             </div>
         </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const socket = io();
+        // Конфигурация
+        const CONFIG = {
+            FIELD_SIZE: 21,
+            CELL_SIZE: 40,
+            SPELL_SPEED: 300
+        };
 
-        // Game state
-        let myId = '';
-        let field = [];
-        let FIELD_SIZE = 21;
-        let TILE_SIZE = 40;
-        let players = {};
-        let spells = [];
-        let currentConfigIndex = -1;
-        let isEditingNickname = false;
+        // Глобальные переменные
+        let socket;
+        let canvas, ctx;
+        let camera = { x: 0, y: 0, zoom: 1 };
+        let currentPlayer = null;
+        let players = new Map();
+        let spells = new Map();
+        let blocks = new Map();
+        let selectedSpellIndex = 0;
+        let currentSpellSlot = null;
 
-        // UI Elements
-        const nicknameDisplay = document.getElementById('nicknameDisplay');
-        const nicknameEditBtn = document.getElementById('nicknameEditBtn');
-        const hpFill = document.getElementById('hpFill');
-        const shieldFill = document.getElementById('shieldFill');
-        const hpText = document.getElementById('hpText');
-        const scoreDisplay = document.getElementById('scoreDisplay');
-        const resetBtn = document.getElementById('resetBtn');
-        const castButton = document.getElementById('castButton');
-        const spellConfigModal = document.getElementById('spellConfigModal');
-        const spellConfigSlider = document.getElementById('spellConfigSlider');
-        const configValues = document.getElementById('configValues');
-        const spellTypeDisplay = document.getElementById('spellTypeDisplay');
-        const modalTitle = document.getElementById('modalTitle');
-        const saveSpellBtn = document.getElementById('saveSpellBtn');
-        const cancelSpellBtn = document.getElementById('cancelSpellBtn');
-        const deleteSpellBtn = document.getElementById('deleteSpellBtn');
+        // Инициализация
+        function init() {
+            // Настройка Canvas
+            canvas = document.getElementById('game-canvas');
+            ctx = canvas.getContext('2d');
+            resizeCanvas();
 
-        // Camera
-        let cameraX = 0;
-        let cameraY = 0;
-        const CAMERA_SMOOTHNESS = 0.1;
+            // Подключение к серверу
+            socket = io();
 
-        // Initialize canvas size
-        function resizeCanvas() {
-            const width = window.innerWidth;
-            const height = window.innerHeight;
+            // Обработчики событий сервера
+            socket.on('init', handleInit);
+            socket.on('player_joined', handlePlayerJoined);
+            socket.on('player_left', handlePlayerLeft);
+            socket.on('player_moved', handlePlayerMoved);
+            socket.on('player_updated', handlePlayerUpdated);
+            socket.on('player_hit', handlePlayerHit);
+            socket.on('player_died', handlePlayerDied);
+            socket.on('player_respawned', handlePlayerRespawned);
+            socket.on('casting_started', handleCastingStarted);
+            socket.on('casting_progress', handleCastingProgress);
+            socket.on('spell_cast', handleSpellCast);
+            socket.on('spell_moved', handleSpellMoved);
+            socket.on('spell_hit', handleSpellHit);
+            socket.on('spell_disappeared', handleSpellDisappeared);
+            socket.on('block_added', handleBlockAdded);
 
-            canvas.width = width;
-            canvas.height = height;
+            // Инициализация UI
+            initUI();
 
-            // Recalculate tile size based on screen size
-            TILE_SIZE = Math.min(width / FIELD_SIZE, height / FIELD_SIZE) * 0.9;
-            TILE_SIZE = Math.max(20, Math.min(50, TILE_SIZE)); // Min 20px, max 50px
+            // Запуск игрового цикла
+            requestAnimationFrame(gameLoop);
         }
 
-        // Update camera to follow player
-        function updateCamera() {
-            if(!players[myId]) return;
+        // Инициализация UI
+        function initUI() {
+            // Джостик
+            document.querySelectorAll('.joystick-btn').forEach(btn => {
+                if(btn.dataset.direction) {
+                    btn.addEventListener('touchstart', (e) => {
+                        e.preventDefault();
+                        socket.emit('move', { direction: btn.dataset.direction });
+                    });
 
-            const player = players[myId];
-            const targetX = player.x * TILE_SIZE - canvas.width / 2 + TILE_SIZE / 2;
-            const targetY = player.y * TILE_SIZE - canvas.height / 2 + TILE_SIZE / 2;
+                    btn.addEventListener('mousedown', () => {
+                        socket.emit('move', { direction: btn.dataset.direction });
+                    });
+                }
+            });
 
-            // Clamp camera to field bounds
-            const maxX = FIELD_SIZE * TILE_SIZE - canvas.width;
-            const maxY = FIELD_SIZE * TILE_SIZE - canvas.height;
+            // Кнопка CAST
+            const castButton = document.getElementById('cast-button');
+            castButton.addEventListener('click', () => {
+                if(!currentPlayer || currentPlayer.isCasting) return;
+                socket.emit('cast_spell', { spellIndex: selectedSpellIndex });
+            });
 
-            cameraX += (Math.max(0, Math.min(targetX, maxX)) - cameraX) * CAMERA_SMOOTHNESS;
-            cameraY += (Math.max(0, Math.min(targetY, maxY)) - cameraY) * CAMERA_SMOOTHNESS;
-        }
+            // Горячие клавиши
+            document.addEventListener('keydown', handleKeyDown);
 
-        // Draw functions
-        function drawField() {
-            if(!field || field.length === 0) return;
+            // Редактирование никнейма
+            const nicknameDisplay = document.getElementById('nickname-display');
+            nicknameDisplay.addEventListener('click', () => {
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'nickname-input';
+                input.value = currentPlayer.nickname;
+                input.maxLength = 15;
 
-            const startX = Math.floor(cameraX / TILE_SIZE);
-            const startY = Math.floor(cameraY / TILE_SIZE);
-            const endX = Math.ceil((cameraX + canvas.width) / TILE_SIZE);
-            const endY = Math.ceil((cameraY + canvas.height) / TILE_SIZE);
+                input.addEventListener('blur', () => {
+                    updateNickname(input.value);
+                    nicknameDisplay.style.display = 'block';
+                });
 
-            for(let x = Math.max(0, startX); x < Math.min(FIELD_SIZE, endX); x++) {
-                for(let y = Math.max(0, startY); y < Math.min(FIELD_SIZE, endY); y++) {
-                    const tile = field[x][y];
-                    const screenX = x * TILE_SIZE - cameraX;
-                    const screenY = y * TILE_SIZE - cameraY;
-
-                    // Draw tile
-                    if(tile === 1) {
-                        ctx.fillStyle = '#222';
-                        ctx.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
-                        ctx.fillStyle = '#333';
-                        ctx.fillRect(screenX + 2, screenY + 2, TILE_SIZE - 4, TILE_SIZE - 4);
-                    } else if(tile === 2) {
-                        ctx.fillStyle = '#8B4513';
-                        ctx.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
-                        ctx.fillStyle = '#A0522D';
-                        ctx.fillRect(screenX + 3, screenY + 3, TILE_SIZE - 6, TILE_SIZE - 6);
-                    } else {
-                        ctx.fillStyle = '#2E8B57';
-                        ctx.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
-                        ctx.fillStyle = '#3CB371';
-                        ctx.fillRect(screenX + 1, screenY + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+                input.addEventListener('keypress', (e) => {
+                    if(e.key === 'Enter') {
+                        updateNickname(input.value);
+                        nicknameDisplay.style.display = 'block';
                     }
+                });
 
-                    // Grid
-                    ctx.strokeStyle = 'rgba(30, 86, 49, 0.3)';
-                    ctx.lineWidth = 1;
-                    ctx.strokeRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
+                nicknameDisplay.style.display = 'none';
+                nicknameDisplay.parentNode.insertBefore(input, nicknameDisplay.nextSibling);
+                input.focus();
+            });
+        }
+
+        // Обработка клавиш
+        function handleKeyDown(e) {
+            if(!currentPlayer) return;
+
+            switch(e.key.toLowerCase()) {
+                case 'w':
+                case 'ц':
+                case 'arrowup':
+                    socket.emit('move', { direction: 'up' });
+                    break;
+                case 's':
+                case 'ы':
+                case 'arrowdown':
+                    socket.emit('move', { direction: 'down' });
+                    break;
+                case 'a':
+                case 'ф':
+                case 'arrowleft':
+                    socket.emit('move', { direction: 'left' });
+                    break;
+                case 'd':
+                case 'в':
+                case 'arrowright':
+                    socket.emit('move', { direction: 'right' });
+                    break;
+                case ' ':
+                    if(!currentPlayer.isCasting) {
+                        socket.emit('cast_spell', { spellIndex: selectedSpellIndex });
+                    }
+                    break;
+                case '1': case '2': case '3': case '4':
+                case '5': case '6': case '7': case '8':
+                    const index = parseInt(e.key) - 1;
+                    if(currentPlayer.spells[index] !== undefined) {
+                        selectSpell(index);
+                    }
+                    break;
+            }
+        }
+
+        // Обработчики серверных событий
+        function handleInit(data) {
+            currentPlayer = data.player;
+            updatePlayerUI();
+            createSpellSlots();
+
+            // Загрузка игроков
+            data.gameState.players.forEach(p => {
+                if(p.id !== socket.id) {
+                    players.set(p.id, p);
+                }
+            });
+
+            // Загрузка блоков
+            data.gameState.blocks.forEach(([key, block]) => {
+                blocks.set(key, block);
+            });
+        }
+
+        function handlePlayerJoined(player) {
+            players.set(player.id, player);
+        }
+
+        function handlePlayerLeft(data) {
+            players.delete(data.id);
+        }
+
+        function handlePlayerMoved(data) {
+            const player = players.get(data.id) || (data.id === socket.id ? currentPlayer : null);
+            if(player) {
+                player.x = data.x;
+                player.y = data.y;
+                player.direction = data.direction;
+            }
+        }
+
+        function handlePlayerUpdated(data) {
+            if(data.id === socket.id) {
+                Object.assign(currentPlayer, data);
+                updatePlayerUI();
+
+                if(data.spells) {
+                    createSpellSlots();
+                }
+                if(data.selectedSpell !== undefined) {
+                    selectSpell(data.selectedSpell);
+                }
+            } else {
+                const player = players.get(data.id);
+                if(player) {
+                    Object.assign(player, data);
                 }
             }
         }
 
-        function drawPlayers() {
-            Object.values(players).forEach(player => {
-                const screenX = player.x * TILE_SIZE - cameraX;
-                const screenY = player.y * TILE_SIZE - cameraY;
+        function handlePlayerHit(data) {
+            // Визуальный эффект попадания
+            if(data.targetId === socket.id) {
+                // Мигание экрана
+                document.body.style.backgroundColor = '#ff4444';
+                setTimeout(() => {
+                    document.body.style.backgroundColor = '';
+                }, 100);
+            }
+        }
 
-                // Skip if off-screen
-                if(screenX + TILE_SIZE < 0 || screenX > canvas.width ||
-                    screenY + TILE_SIZE < 0 || screenY > canvas.height) return;
+        function handlePlayerDied(data) {
+            // Эффект смерти
+            const player = players.get(data.playerId);
+            if(player) {
+                player.hp = 0;
+            }
+        }
 
-                // Draw player
-                ctx.fillStyle = player.color;
-                ctx.fillRect(screenX + 4, screenY + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+        function handlePlayerRespawned(data) {
+            const player = data.id === socket.id ? currentPlayer : players.get(data.id);
+            if(player) {
+                Object.assign(player, data);
+            }
+        }
 
-                // Direction indicator
-                ctx.fillStyle = 'white';
-                const centerX = screenX + TILE_SIZE / 2;
-                const centerY = screenY + TILE_SIZE / 2;
+        function handleCastingStarted(data) {
+            const player = data.playerId === socket.id ? currentPlayer : players.get(data.playerId);
+            if(player) {
+                player.isCasting = true;
+                player.castProgress = 0;
+            }
+        }
 
-                if(player.direction === 'up') {
-                    ctx.fillRect(centerX - 2, screenY + 6, 4, 8);
-                } else if(player.direction === 'down') {
-                    ctx.fillRect(centerX - 2, screenY + TILE_SIZE - 14, 4, 8);
-                } else if(player.direction === 'left') {
-                    ctx.fillRect(screenX + 6, centerY - 2, 8, 4);
-                } else if(player.direction === 'right') {
-                    ctx.fillRect(screenX + TILE_SIZE - 14, centerY - 2, 8, 4);
+        function handleCastingProgress(data) {
+            const player = data.playerId === socket.id ? currentPlayer : players.get(data.playerId);
+            if(player) {
+                player.castProgress = data.progress;
+            }
+        }
+
+        function handleSpellCast(data) {
+            spells.set(data.spell.id, data.spell);
+
+            const player = data.playerId === socket.id ? currentPlayer : players.get(data.playerId);
+            if(player) {
+                player.isCasting = false;
+            }
+        }
+
+        function handleSpellMoved(data) {
+            const spell = spells.get(data.spellId);
+            if(spell) {
+                spell.x = data.x;
+                spell.y = data.y;
+            }
+        }
+
+        function handleSpellHit(data) {
+            spells.delete(data.spellId);
+
+            // Визуальный эффект попадания
+            if(data.target === 'block') {
+                // Анимация разрушения блока
+                // (можно добавить частицы)
+            }
+        }
+
+        function handleSpellDisappeared(data) {
+            spells.delete(data.spellId);
+        }
+
+        function handleBlockAdded(data) {
+            blocks.set(`${data.x},${data.y}`, data.block);
+        }
+
+        // UI функции
+        function updatePlayerUI() {
+            if(!currentPlayer) return;
+
+            document.getElementById('nickname-display').textContent = currentPlayer.nickname;
+            document.getElementById('health').textContent = `${currentPlayer.hp}/${currentPlayer.maxHp}`;
+            document.getElementById('shield').textContent = currentPlayer.shield;
+            document.getElementById('score').textContent = currentPlayer.score;
+
+            const castButton = document.getElementById('cast-button');
+            castButton.disabled = currentPlayer.isCasting || currentPlayer.hp <= 0;
+        }
+
+        function createSpellSlots() {
+            if(!currentPlayer) return;
+
+            const spellsPanel = document.getElementById('spells-panel');
+            spellsPanel.innerHTML = '';
+
+            currentPlayer.spells.forEach((spell, index) => {
+                const slot = document.createElement('div');
+                slot.className = 'spell-slot';
+                slot.dataset.index = index;
+
+                if(spell) {
+                    slot.innerHTML = `
+                        <div class="spell-index">${index + 1}</div>
+                        <div class="spell-icon">${spell.type === 'water' ? '💧' : '🛡️'}</div>
+                        <div class="spell-stats">${spell.speed}/${spell.power}</div>
+                    `;
+
+                    if(index === selectedSpellIndex) {
+                        slot.classList.add('selected');
+                    }
+
+                    slot.addEventListener('click', () => selectSpell(index));
+                } else {
+                    slot.className += ' empty';
+                    slot.textContent = '+';
+
+                    slot.addEventListener('click', () => openSpellSelect(index));
                 }
 
-                // Nickname
-                ctx.fillStyle = 'white';
-                ctx.font = `${Math.max(10, TILE_SIZE / 4)}px Arial`;
-                ctx.textAlign = 'center';
-                ctx.fillText(player.nickname, centerX, screenY - 8);
+                spellsPanel.appendChild(slot);
+            });
+        }
 
-                // Selection for current player
-                if(player.id === myId) {
-                    ctx.strokeStyle = 'gold';
-                    ctx.lineWidth = 3;
-                    ctx.strokeRect(screenX + 2, screenY + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+        function selectSpell(index) {
+            if(!currentPlayer || !currentPlayer.spells[index]) return;
+
+            selectedSpellIndex = index;
+            currentPlayer.selectedSpell = index;
+
+            // Обновить выделение
+            document.querySelectorAll('.spell-slot').forEach((slot, i) => {
+                slot.classList.toggle('selected', i === index);
+            });
+
+            socket.emit('select_spell', { spellIndex: index });
+        }
+
+        function openSpellSelect(slotIndex) {
+            currentSpellSlot = slotIndex;
+
+            const modal = document.getElementById('spell-select-modal');
+            modal.classList.add('active');
+
+            // Обработчики выбора заклинания
+            document.querySelectorAll('.spell-option').forEach(option => {
+                option.onclick = () => {
+                    modal.classList.remove('active');
+                    openSpellConfig(slotIndex, option.dataset.type);
+                };
+            });
+
+            document.getElementById('cancel-spell-select').onclick = () => {
+                modal.classList.remove('active');
+                currentSpellSlot = null;
+            };
+        }
+
+        function openSpellConfig(slotIndex, spellType) {
+            const modal = document.getElementById('spell-config-modal');
+            modal.classList.add('active');
+
+            const slider = document.getElementById('spell-slider');
+            const speedValue = document.getElementById('speed-value');
+            const powerValue = document.getElementById('power-value');
+
+            // Настройка слайдера
+            slider.oninput = function () {
+                const speed = parseInt(this.value);
+                const power = 11 - speed; // Обратная зависимость
+                speedValue.textContent = speed;
+                powerValue.textContent = power;
+            };
+
+            // Сброс к значениям по умолчанию
+            slider.value = 6;
+            slider.oninput();
+
+            // Кнопки
+            document.getElementById('save-spell').onclick = () => {
+                const speed = parseInt(slider.value);
+                const power = 11 - speed;
+
+                socket.emit('update_spell', {
+                    spellIndex: slotIndex,
+                    type: spellType,
+                    speed: speed,
+                    power: power
+                });
+
+                modal.classList.remove('active');
+                currentSpellSlot = null;
+            };
+
+            document.getElementById('delete-spell').onclick = () => {
+                socket.emit('remove_spell', { spellIndex: slotIndex });
+                modal.classList.remove('active');
+                currentSpellSlot = null;
+            };
+
+            document.getElementById('cancel-spell-config').onclick = () => {
+                modal.classList.remove('active');
+                currentSpellSlot = null;
+            };
+        }
+
+        function updateNickname(nickname) {
+            if(nickname.trim().length > 0) {
+                socket.emit('update_nickname', { nickname: nickname.trim() });
+            }
+        }
+
+        // Игровой цикл
+        function gameLoop() {
+            updateCamera();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function updateCamera() {
+            if(!currentPlayer) return;
+
+            // Плавное следование камеры за игроком
+            const targetX = currentPlayer.x * CONFIG.CELL_SIZE;
+            const targetY = currentPlayer.y * CONFIG.CELL_SIZE;
+
+            camera.x += (targetX - camera.x) * 0.1;
+            camera.y += (targetY - camera.y) * 0.1;
+
+            // Центрирование камеры
+            camera.x = canvas.width / 2 - camera.x;
+            camera.y = canvas.height / 2 - camera.y;
+        }
+
+        function render() {
+            // Очистка canvas
+            ctx.fillStyle = '#1a1a4a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Сохранение контекста для трансформаций камеры
+            ctx.save();
+            ctx.translate(camera.x, camera.y);
+
+            // Рендер блоков
+            renderBlocks();
+
+            // Рендер заклинаний
+            renderSpells();
+
+            // Рендер игроков
+            renderPlayers();
+
+            // Восстановление контекста
+            ctx.restore();
+
+            // Рендер UI поверх всего
+            renderUI();
+        }
+
+        function renderBlocks() {
+            blocks.forEach((block, key) => {
+                const [x, y] = key.split(',').map(Number);
+
+                ctx.fillStyle = block.type === 'wall' ? '#333366' :
+                    block.durability >= 4 ? '#8B4513' :
+                        block.durability >= 2 ? '#A0522D' : '#D2691E';
+
+                ctx.fillRect(
+                    x * CONFIG.CELL_SIZE,
+                    y * CONFIG.CELL_SIZE,
+                    CONFIG.CELL_SIZE,
+                    CONFIG.CELL_SIZE
+                );
+
+                // Контур блока
+                ctx.strokeStyle = '#222244';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(
+                    x * CONFIG.CELL_SIZE,
+                    y * CONFIG.CELL_SIZE,
+                    CONFIG.CELL_SIZE,
+                    CONFIG.CELL_SIZE
+                );
+
+                // Прочность разрушаемых блоков
+                if(block.type === 'destructible') {
+                    ctx.fillStyle = '#fff';
+                    ctx.font = '12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(
+                        block.durability,
+                        x * CONFIG.CELL_SIZE + CONFIG.CELL_SIZE / 2,
+                        y * CONFIG.CELL_SIZE + CONFIG.CELL_SIZE / 2 + 4
+                    );
                 }
             });
         }
 
-        function drawSpells() {
+        function renderSpells() {
             spells.forEach(spell => {
-                const startX = spell.x * TILE_SIZE - cameraX + TILE_SIZE / 2;
-                const startY = spell.y * TILE_SIZE - cameraY + TILE_SIZE / 2;
-                const endX = spell.targetX * TILE_SIZE - cameraX + TILE_SIZE / 2;
-                const endY = spell.targetY * TILE_SIZE - cameraY + TILE_SIZE / 2;
+                ctx.fillStyle = spell.type === 'water' ? '#00aaff' : '#ffd700';
 
-                const currentX = startX + (endX - startX) * spell.progress;
-                const currentY = startY + (endY - startY) * spell.progress;
-
-                // Skip if off-screen
-                if(currentX < -20 || currentX > canvas.width + 20 ||
-                    currentY < -20 || currentY > canvas.height + 20) return;
-
-                // Draw spell
-                ctx.fillStyle = spell.type === 'water' ? '#40C4FF' : '#FFD740';
                 ctx.beginPath();
-                ctx.arc(currentX, currentY, TILE_SIZE / 4, 0, Math.PI * 2);
+                ctx.arc(
+                    spell.x * CONFIG.CELL_SIZE,
+                    spell.y * CONFIG.CELL_SIZE,
+                    8, 0, Math.PI * 2
+                );
                 ctx.fill();
 
-                ctx.strokeStyle = spell.type === 'water' ? '#2979FF' : '#FFAB00';
-                ctx.lineWidth = 2;
+                // Хвост заклинания
+                ctx.strokeStyle = spell.type === 'water' ? '#0088cc' : '#ffaa00';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+
+                let tailX = spell.x;
+                let tailY = spell.y;
+                switch(spell.direction) {
+                    case 'up': tailY += 0.3; break;
+                    case 'down': tailY -= 0.3; break;
+                    case 'left': tailX += 0.3; break;
+                    case 'right': tailX -= 0.3; break;
+                }
+
+                ctx.moveTo(
+                    spell.x * CONFIG.CELL_SIZE,
+                    spell.y * CONFIG.CELL_SIZE
+                );
+                ctx.lineTo(
+                    tailX * CONFIG.CELL_SIZE,
+                    tailY * CONFIG.CELL_SIZE
+                );
                 ctx.stroke();
             });
         }
 
-        function updateSpellSlots() {
-            const player = players[myId];
-            if(!player) return;
-
-            document.querySelectorAll('.spell-slot').forEach(slot => {
-                const index = parseInt(slot.dataset.index);
-                const spell = player.spells[index];
-
-                slot.classList.remove('empty', 'selected');
-                slot.innerHTML = '';
-
-                if(spell) {
-                    if(spell.selected) slot.classList.add('selected');
-
-                    const icon = document.createElement('div');
-                    icon.className = 'spell-icon';
-                    icon.textContent = spell.type === 'water' ? '💧' : '🛡️';
-
-                    const stats = document.createElement('div');
-                    stats.className = 'spell-stats';
-                    stats.textContent = `${spell.speed}/${spell.power}`;
-
-                    slot.appendChild(icon);
-                    slot.appendChild(stats);
-                } else {
-                    slot.classList.add('empty');
-                    slot.textContent = '+';
-                }
-            });
-        }
-
-        function updateHealthDisplay() {
-            const player = players[myId];
-            if(!player) return;
-
-            const hpPercent = (player.hp / 100) * 100;
-            const shieldPercent = (player.shield / 50) * 100;
-
-            hpFill.style.width = `${hpPercent}%`;
-            shieldFill.style.width = `${shieldPercent}%`;
-            hpText.textContent = player.shield > 0 ?
-                `${player.hp}+${player.shield}/100` :
-                `${player.hp}/100`;
-        }
-
-        function render() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            updateCamera();
-            drawField();
-            drawPlayers();
-            drawSpells();
-            requestAnimationFrame(render);
-        }
-
-        // UI Event Handlers
-        function setupEventListeners() {
-            // Window resize
-            window.addEventListener('resize', resizeCanvas);
-
-            // Nickname editing
-            nicknameEditBtn.addEventListener('click', () => {
-                if(!isEditingNickname) {
-                    isEditingNickname = true;
-                    nicknameDisplay.contentEditable = true;
-                    nicknameDisplay.classList.add('editing');
-                    nicknameDisplay.focus();
-                    selectText(nicknameDisplay);
-                } else {
-                    saveNickname();
+        function renderPlayers() {
+            // Рендер других игроков
+            players.forEach(player => {
+                if(player.hp > 0) {
+                    renderPlayer(player);
                 }
             });
 
-            nicknameDisplay.addEventListener('keydown', (e) => {
-                if(e.key === 'Enter') {
-                    e.preventDefault();
-                    saveNickname();
-                } else if(e.key === 'Escape') {
-                    cancelNicknameEdit();
-                }
-            });
-
-            nicknameDisplay.addEventListener('blur', saveNickname);
-
-            // Joystick buttons
-            document.querySelectorAll('.joystick-btn[data-key]').forEach(btn => {
-                const key = btn.dataset.key;
-
-                // Touch events
-                btn.addEventListener('touchstart', (e) => {
-                    e.preventDefault();
-                    handleMove(key);
-                    btn.classList.add('active');
-                });
-
-                btn.addEventListener('touchend', (e) => {
-                    e.preventDefault();
-                    btn.classList.remove('active');
-                });
-
-                // Mouse events
-                btn.addEventListener('mousedown', () => {
-                    handleMove(key);
-                    btn.classList.add('active');
-                });
-
-                btn.addEventListener('mouseup', () => {
-                    btn.classList.remove('active');
-                });
-
-                btn.addEventListener('mouseleave', () => {
-                    btn.classList.remove('active');
-                });
-            });
-
-            // Spell slots
-            document.querySelectorAll('.spell-slot').forEach(slot => {
-                const index = parseInt(slot.dataset.index);
-                let longPressTimer;
-
-                function handlePress() {
-                    const player = players[myId];
-                    if(player && player.spells[index]) {
-                        socket.emit('selectSpell', index);
-                    } else {
-                        openSpellConfig(index);
-                    }
-                }
-
-                // Touch events
-                slot.addEventListener('touchstart', (e) => {
-                    e.preventDefault();
-                    longPressTimer = setTimeout(() => {
-                        openSpellConfig(index);
-                    }, 800);
-                });
-
-                slot.addEventListener('touchend', (e) => {
-                    e.preventDefault();
-                    clearTimeout(longPressTimer);
-                    if(longPressTimer) handlePress();
-                });
-
-                // Mouse events
-                slot.addEventListener('mousedown', () => {
-                    longPressTimer = setTimeout(() => {
-                        openSpellConfig(index);
-                    }, 800);
-                });
-
-                slot.addEventListener('mouseup', () => {
-                    clearTimeout(longPressTimer);
-                    if(longPressTimer) handlePress();
-                });
-
-                slot.addEventListener('mouseleave', () => {
-                    clearTimeout(longPressTimer);
-                });
-            });
-
-            // Cast button
-            castButton.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                socket.emit('castSpell');
-                castButton.classList.add('active');
-            });
-
-            castButton.addEventListener('touchend', (e) => {
-                e.preventDefault();
-                castButton.classList.remove('active');
-            });
-
-            castButton.addEventListener('mousedown', () => {
-                socket.emit('castSpell');
-                castButton.classList.add('active');
-            });
-
-            castButton.addEventListener('mouseup', () => {
-                castButton.classList.remove('active');
-            });
-
-            // Reset button
-            resetBtn.addEventListener('click', () => {
-                if(confirm('Reset the game field?')) {
-                    socket.emit('resetField');
-                }
-            });
-
-            // Spell config modal
-            spellConfigSlider.addEventListener('input', updateConfigDisplay);
-            saveSpellBtn.addEventListener('click', saveSpellConfig);
-            cancelSpellBtn.addEventListener('click', closeSpellConfig);
-            deleteSpellBtn.addEventListener('click', deleteSpellConfig);
-
-            // Keyboard controls
-            document.addEventListener('keydown', handleKeyDown);
-            document.addEventListener('keyup', handleKeyUp);
-        }
-
-        function handleKeyDown(e) {
-            if(!myId) return;
-
-            // Movement
-            const keyMap = {
-                'ArrowUp': 'up', 'w': 'up', 'W': 'up', 'ц': 'up', 'Ц': 'up',
-                'ArrowDown': 'down', 's': 'down', 'S': 'down', 'ы': 'down', 'Ы': 'down',
-                'ArrowLeft': 'left', 'a': 'left', 'A': 'left', 'ф': 'left', 'Ф': 'left',
-                'ArrowRight': 'right', 'd': 'right', 'D': 'right', 'в': 'right', 'В': 'right'
-            };
-
-            if(keyMap[e.key]) {
-                socket.emit('move', keyMap[e.key]);
-                highlightButton(keyMap[e.key]);
-            }
-
-            // Cast spell
-            if(e.key === ' ' || e.key === 'Spacebar') {
-                e.preventDefault();
-                socket.emit('castSpell');
-                castButton.classList.add('active');
-            }
-
-            // Spell selection (1-8)
-            if(e.key >= '1' && e.key <= '8') {
-                const index = parseInt(e.key) - 1;
-                if(players[myId] && players[myId].spells[index]) {
-                    socket.emit('selectSpell', index);
-                    highlightSpellSlot(index);
-                }
-            }
-
-            // Escape nickname edit
-            if(e.key === 'Escape' && isEditingNickname) {
-                cancelNicknameEdit();
+            // Рендер текущего игрока поверх всех
+            if(currentPlayer && currentPlayer.hp > 0) {
+                renderPlayer(currentPlayer, true);
             }
         }
 
-        function handleKeyUp(e) {
-            // Movement keys
-            const movementKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
-                'w', 'W', 's', 'S', 'a', 'A', 'd', 'D',
-                'ц', 'Ц', 'ы', 'Ы', 'ф', 'Ф', 'в', 'В'];
-            if(movementKeys.includes(e.key)) {
-                document.querySelectorAll('.joystick-btn').forEach(btn => {
-                    btn.classList.remove('active');
-                });
+        function renderPlayer(player, isCurrent = false) {
+            const x = player.x * CONFIG.CELL_SIZE;
+            const y = player.y * CONFIG.CELL_SIZE;
+            const size = CONFIG.CELL_SIZE * 0.8;
+
+            // Тело игрока
+            ctx.fillStyle = player.color;
+            ctx.fillRect(
+                x - size / 2,
+                y - size / 2,
+                size,
+                size
+            );
+
+            // Контур
+            ctx.strokeStyle = isCurrent ? '#ffd700' : '#ffffff';
+            ctx.lineWidth = isCurrent ? 3 : 2;
+            ctx.strokeRect(
+                x - size / 2,
+                y - size / 2,
+                size,
+                size
+            );
+
+            // Направление взгляда
+            ctx.fillStyle = '#000';
+            let eyeX = x, eyeY = y;
+            const eyeOffset = size * 0.25;
+
+            switch(player.direction) {
+                case 'up': eyeY -= eyeOffset; break;
+                case 'down': eyeY += eyeOffset; break;
+                case 'left': eyeX -= eyeOffset; break;
+                case 'right': eyeX += eyeOffset; break;
             }
 
-            // Space bar
-            if(e.key === ' ' || e.key === 'Spacebar') {
-                castButton.classList.remove('active');
+            ctx.beginPath();
+            ctx.arc(eyeX, eyeY, size * 0.1, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Никнейм
+            ctx.fillStyle = isCurrent ? '#ffd700' : '#ffffff';
+            ctx.font = 'bold 12px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(
+                player.nickname,
+                x,
+                y - size
+            );
+
+            // Полоска здоровья
+            const healthWidth = size;
+            const healthHeight = 5;
+            const healthPercent = player.hp / player.maxHp;
+
+            ctx.fillStyle = '#333';
+            ctx.fillRect(
+                x - healthWidth / 2,
+                y + size / 2 + 5,
+                healthWidth,
+                healthHeight
+            );
+
+            ctx.fillStyle = healthPercent > 0.5 ? '#00ff00' :
+                healthPercent > 0.2 ? '#ffff00' : '#ff0000';
+            ctx.fillRect(
+                x - healthWidth / 2,
+                y + size / 2 + 5,
+                healthWidth * healthPercent,
+                healthHeight
+            );
+
+            // Щит
+            if(player.shield > 0) {
+                ctx.strokeStyle = '#00ffff';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(x, y, size / 2 + 3, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            // Анимация каста
+            if(player.isCasting) {
+                const ringSize = size + 20;
+                ctx.strokeStyle = `rgba(0, 255, 255, ${player.castProgress / 100})`;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(x, y, ringSize, 0, Math.PI * 2 * (player.castProgress / 100));
+                ctx.stroke();
             }
         }
 
-        function highlightButton(direction) {
-            const btnId = {
-                'up': 'btnUp',
-                'down': 'btnDown',
-                'left': 'btnLeft',
-                'right': 'btnRight'
-            }[direction];
+        function renderUI() {
+            // Индикатор выбранного заклинания
+            if(currentPlayer && currentPlayer.spells[selectedSpellIndex]) {
+                const spell = currentPlayer.spells[selectedSpellIndex];
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(10, canvas.height - 50, 150, 40);
 
-            if(btnId) {
-                const btn = document.getElementById(btnId);
-                if(btn) {
-                    btn.classList.add('active');
-                    setTimeout(() => btn.classList.remove('active'), 100);
-                }
+                ctx.fillStyle = '#fff';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'left';
+                ctx.fillText(
+                    `Выбрано: ${spell.name}`,
+                    20,
+                    canvas.height - 30
+                );
+
+                ctx.fillText(
+                    `Скорость: ${spell.speed} | Сила: ${spell.power}`,
+                    20,
+                    canvas.height - 10
+                );
             }
         }
 
-        function highlightSpellSlot(index) {
-            const slots = document.querySelectorAll('.spell-slot');
-            if(slots[index]) {
-                const originalTransform = slots[index].style.transform;
-                slots[index].style.transform = 'scale(1.1)';
-                setTimeout(() => {
-                    slots[index].style.transform = originalTransform;
-                }, 300);
-            }
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight -
+                document.getElementById('top-panel').offsetHeight -
+                document.getElementById('bottom-panel').offsetHeight;
         }
 
-        function handleMove(direction) {
-            socket.emit('move', direction);
-        }
+        // Обработка ресайза окна
+        window.addEventListener('resize', resizeCanvas);
 
-        function selectText(element) {
-            const range = document.createRange();
-            range.selectNodeContents(element);
-            const selection = window.getSelection();
-            selection.removeAllRanges();
-            selection.addRange(range);
-        }
-
-        function saveNickname() {
-            if(!isEditingNickname) return;
-
-            const newNickname = nicknameDisplay.textContent.trim();
-            if(newNickname.length > 0 && newNickname.length <= 12) {
-                socket.emit('rename', newNickname);
-            } else {
-                // Restore original
-                const player = players[myId];
-                if(player) nicknameDisplay.textContent = player.nickname;
-            }
-
-            cancelNicknameEdit();
-        }
-
-        function cancelNicknameEdit() {
-            isEditingNickname = false;
-            nicknameDisplay.contentEditable = false;
-            nicknameDisplay.classList.remove('editing');
-            const player = players[myId];
-            if(player) nicknameDisplay.textContent = player.nickname;
-        }
-
-        function openSpellConfig(index) {
-            currentConfigIndex = index;
-            const player = players[myId];
-            const spell = player ? player.spells[index] : null;
-
-            if(spell) {
-                modalTitle.textContent = 'Edit Spell';
-                spellTypeDisplay.textContent = spell.type === 'water' ? 'Water Blast 💧' : 'Shield 🛡️';
-                spellConfigSlider.value = spell.speed;
-                deleteSpellBtn.style.display = 'block';
-            } else {
-                modalTitle.textContent = 'Create Spell';
-                spellTypeDisplay.textContent = 'Select Spell Type';
-                spellConfigSlider.value = 5;
-                deleteSpellBtn.style.display = 'none';
-            }
-
-            updateConfigDisplay();
-            spellConfigModal.classList.add('active');
-        }
-
-        function updateConfigDisplay() {
-            const speed = parseInt(spellConfigSlider.value);
-            const power = 11 - speed;
-            configValues.textContent = `Speed: ${speed} / Power: ${power}`;
-        }
-
-        function closeSpellConfig() {
-            spellConfigModal.classList.remove('active');
-            currentConfigIndex = -1;
-        }
-
-        function saveSpellConfig() {
-            if(currentConfigIndex === -1) return;
-
-            const type = players[myId]?.spells[currentConfigIndex]?.type || 'water';
-            const speed = parseInt(spellConfigSlider.value);
-            const power = 11 - speed;
-
-            socket.emit('updateSpell', {
-                index: currentConfigIndex,
-                type: type,
-                speed: speed,
-                power: power,
-                selected: true
-            });
-
-            closeSpellConfig();
-        }
-
-        function deleteSpellConfig() {
-            if(currentConfigIndex === -1) return;
-
-            socket.emit('updateSpell', {
-                index: currentConfigIndex,
-                type: null,
-                speed: 0,
-                power: 0,
-                selected: false
-            });
-
-            closeSpellConfig();
-        }
-
-        // Socket events
-        socket.on('init', (data) => {
-            console.log('Game initialized');
-            myId = data.id;
-            field = data.field || [];
-            FIELD_SIZE = data.fieldSize || 21;
-            players = data.allPlayers || {};
-            spells = data.allSpells || [];
-
-            nicknameDisplay.textContent = data.nickname;
-            scoreDisplay.textContent = `Score: ${players[myId]?.score || 0}`;
-            updateHealthDisplay();
-            updateSpellSlots();
-
-            // Initialize camera
-            if(players[myId]) {
-                cameraX = players[myId].x * TILE_SIZE - canvas.width / 2 + TILE_SIZE / 2;
-                cameraY = players[myId].y * TILE_SIZE - canvas.height / 2 + TILE_SIZE / 2;
-            }
-
-            resizeCanvas();
-            setupEventListeners();
-            render();
-        });
-
-        socket.on('playerJoined', (player) => {
-            players[player.id] = player;
-        });
-
-        socket.on('playerMoved', (data) => {
-            if(players[data.id]) {
-                players[data.id].x = data.x;
-                players[data.id].y = data.y;
-                players[data.id].direction = data.direction;
-            }
-        });
-
-        socket.on('playerUpdated', (player) => {
-            players[player.id] = player;
-            if(player.id === myId) {
-                nicknameDisplay.textContent = player.nickname;
-                scoreDisplay.textContent = `Score: ${player.score}`;
-                updateHealthDisplay();
-                updateSpellSlots();
-            }
-        });
-
-        socket.on('spellCast', (spell) => {
-            spells.push(spell);
-        });
-
-        socket.on('spellsUpdate', (updatedSpells) => {
-            spells = updatedSpells;
-        });
-
-        socket.on('blockDestroyed', (data) => {
-            if(field[data.x] && field[data.x][data.y] === 2) {
-                field[data.x][data.y] = 0;
-            }
-        });
-
-        socket.on('blockRespawned', (data) => {
-            if(field[data.x] && field[data.x][data.y] === 0) {
-                field[data.x][data.y] = 2;
-            }
-        });
-
-        socket.on('fieldReset', (newField) => {
-            field = newField;
-        });
-
-        socket.on('playerLeft', (playerId) => {
-            delete players[playerId];
-        });
-
-        // Initialize
-        resizeCanvas();
-        setupEventListeners();
-        render();
+        // Запуск игры
+        window.onload = init;
     </script>
 </body>
 
