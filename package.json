@@ -1,0 +1,11 @@
+{
+    "name": "bomberman-magic",
+    "version": "1.0.0",
+    "dependencies": {
+        "express": "^4.18.2",
+        "socket.io": "^4.7.2"
+    },
+    "scripts": {
+        "start": "nodemon server.js"
+    }
+}
