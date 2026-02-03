@@ -1,7 +1,20 @@
+// create_sprites.js (в корне проекта)
 const fs = require('fs');
+const path = require('path');
 const {
     createCanvas
 } = require('canvas');
+
+// Путь к папке assets
+const assetsPath = path.join(__dirname, 'public', 'assets');
+
+// Создаем папку, если её нет
+if (!fs.existsSync(assetsPath)) {
+    fs.mkdirSync(assetsPath, {
+        recursive: true
+    });
+    console.log(`Создана папка: ${assetsPath}`);
+}
 
 function createSprite(name, color, text = '') {
     const canvas = createCanvas(32, 32);
@@ -25,9 +38,11 @@ function createSprite(name, color, text = '') {
         ctx.fillText(text, 16, 16);
     }
 
+    // Сохраняем файл
+    const filePath = path.join(assetsPath, `${name}.png`);
     const buffer = canvas.toBuffer('image/png');
-    fs.writeFileSync(`assets/${name}.png`, buffer);
-    console.log(`Создан спрайт: ${name}.png`);
+    fs.writeFileSync(filePath, buffer);
+    console.log(`Создан спрайт: ${filePath}`);
 }
 
 // Создаем спрайты
