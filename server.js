@@ -2,13 +2,16 @@ const express = require('express');
 const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http, {
-  cors: { origin: "*" }
+  cors: {
+    origin: "*"
+  }
 });
 
 const FIELD_SIZE = 15;
 const TILE_SIZE = 40;
 const WALLS_COUNT = 50;
-
+const MAX_PLAYERS = 100;
+const BLOCK_RESPAWN_RATE = 5000; // 5 секунд
 
 const BRIGHT_COLORS = [
   '#FF5252', '#FF4081', '#E040FB', '#7C4DFF', '#536DFE',
@@ -43,14 +46,19 @@ function generateField() {
 }
 
 function findEmptySpot(field) {
-  while (true) {
-    const x = Math.floor(Math.random() * (FIELD_SIZE - 2)) + 1;
-    const y = Math.floor(Math.random() * (FIELD_SIZE - 2)) + 1;
-
-    if (field[x][y] === 0) {
-      return { x, y };
+  const emptySpots = [];
+  for (let x = 1; x < FIELD_SIZE - 1; x++) {
+    for (let y = 1; y < FIELD_SIZE - 1; y++) {
+      if (field[x][y] === 0) emptySpots.push({
+        x,
+        y
+      });
     }
   }
+  return emptySpots.length > 0 ? emptySpots[Math.floor(Math.random() * emptySpots.length)] : {
+    x: 1,
+    y: 1
+  };
 }
 
 const players = {};
@@ -69,9 +77,37 @@ function generateNickname() {
   return `${adj}${animal}`;
 }
 
+function respawnBlocks() {
+  let respawned = 0;
+  const maxRespawn = 5;
+
+  for (let i = 0; i < maxRespawn; i++) {
+    const x = Math.floor(Math.random() * FIELD_SIZE);
+    const y = Math.floor(Math.random() * FIELD_SIZE);
+
+    if (field[x][y] === 0 && !(x === 0 || y === 0 || x === FIELD_SIZE - 1 || y === FIELD_SIZE - 1) &&
+      (x % 2 !== 0 || y % 2 !== 0)) {
+      field[x][y] = 2;
+      respawned++;
+    }
+  }
+
+  if (respawned > 0) {
+    io.emit('blocksRespawned', {
+      count: respawned
+    });
+  }
+}
+
 app.use(express.static('public'));
 
 io.on('connection', (socket) => {
+  if (Object.keys(players).length >= MAX_PLAYERS) {
+    socket.emit('serverFull');
+    socket.disconnect();
+    return;
+  }
+
   const color = getRandomColor();
   const nickname = generateNickname();
   const spawn = findEmptySpot(field);
@@ -85,9 +121,19 @@ io.on('connection', (socket) => {
     direction: 'down',
     score: 0,
     hp: 100,
-    spells: [
-      { type: 'water', speed: 5, power: 5, selected: true },
-      { type: 'shield', speed: 5, power: 5, selected: false },
+    shield: 0,
+    spells: [{
+        type: 'water',
+        speed: 5,
+        power: 5,
+        selected: true
+      },
+      {
+        type: 'shield',
+        speed: 5,
+        power: 5,
+        selected: false
+      },
       null, null, null, null, null, null
     ]
   };
@@ -137,12 +183,12 @@ io.on('connection', (socket) => {
     const player = players[socket.id];
     if (!player || data.index < 0 || data.index >= 8) return;
 
-    player.spells[data.index] = {
+    player.spells[data.index] = data.type ? {
       type: data.type,
       speed: data.speed,
       power: data.power,
       selected: data.selected || false
-    };
+    } : null;
 
     io.emit('playerUpdated', players[socket.id]);
   });
@@ -165,10 +211,16 @@ io.on('connection', (socket) => {
     const selectedSpell = player.spells.find(s => s && s.selected);
     if (!selectedSpell) return;
 
+    if (selectedSpell.type === 'shield') {
+      player.shield += selectedSpell.power * 3;
+      if (player.shield > 50) player.shield = 50;
+      io.emit('playerUpdated', player);
+      return;
+    }
+
     let targetX = player.x;
     let targetY = player.y;
-
-    const maxDistance = 10;
+    const maxDistance = 8;
     let distance = 0;
 
     while (distance < maxDistance) {
@@ -186,13 +238,6 @@ io.on('connection', (socket) => {
       }
 
       distance++;
-    }
-
-    if (selectedSpell.type === 'shield') {
-      player.hp += selectedSpell.power * 2;
-      if (player.hp > 100) player.hp = 100;
-      io.emit('playerUpdated', player);
-      return;
     }
 
     const spell = {
@@ -220,6 +265,19 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('restart', () => {
+    const player = players[socket.id];
+    if (player) {
+      player.score = 0;
+      player.hp = 100;
+      player.shield = 0;
+      const spawn = findEmptySpot(field);
+      player.x = spawn.x;
+      player.y = spawn.y;
+      io.emit('playerUpdated', player);
+    }
+  });
+
   socket.on('disconnect', () => {
     const disconnectedPlayer = players[socket.id];
     delete players[socket.id];
@@ -230,6 +288,7 @@ io.on('connection', (socket) => {
 });
 
 function gameLoop() {
+  // Обновление заклинаний
   for (let i = spells.length - 1; i >= 0; i--) {
     const spell = spells[i];
     spell.progress += 0.05 * spell.speed;
@@ -248,20 +307,31 @@ function gameLoop() {
             io.emit('playerUpdated', player);
           }
 
-          io.emit('blockDestroyed', { x: tx, y: ty });
+          io.emit('blockDestroyed', {
+            x: tx,
+            y: ty
+          });
         }
       }
 
       spells.splice(i, 1);
-      io.emit('spellHit', { spellId: spell.id, x: tx, y: ty });
+      io.emit('spellHit', {
+        spellId: spell.id,
+        x: tx,
+        y: ty
+      });
     }
   }
 
   io.emit('spellsUpdate', spells);
 }
 
+// Таймеры
 setInterval(gameLoop, 1000 / 30);
+setInterval(respawnBlocks, BLOCK_RESPAWN_RATE);
 
 http.listen(3000, '0.0.0.0', () => {
   console.log(`Server running on http://0.0.0.0:3000`);
+  console.log(`Field size: ${FIELD_SIZE}x${FIELD_SIZE}`);
+  console.log(`Max players: ${MAX_PLAYERS}`);
 });
