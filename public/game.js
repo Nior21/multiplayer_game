@@ -12,6 +12,18 @@ class MagicBomberman {
         this.offsetX = 0;
         this.offsetY = 0;
 
+        // Загрузка спрайтов
+        this.sprites = {
+            loaded: false,
+            player: null,
+            waterSpell: null,
+            shieldSpell: null,
+            wall: null,
+            block: null,
+            blockCracked: null,
+            floor: null
+        };
+
         this.selectedSpellIndex = 0;
         this.currentConfigSpellIndex = null;
         this.currentConfigSpellType = null;
@@ -24,11 +36,110 @@ class MagicBomberman {
         this.init();
     }
 
+    generatePlaceholderSprites() {
+        // Генерируем простые спрайты для тестирования
+        const createSprite = (color, text = '') => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32;
+            canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+
+            // Фон
+            ctx.fillStyle = color;
+            ctx.fillRect(0, 0, 32, 32);
+
+            // Граница
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(1, 1, 30, 30);
+
+            // Текст (если нужен)
+            if (text) {
+                ctx.fillStyle = '#FFF';
+                ctx.font = '10px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(text, 16, 16);
+            }
+
+            const img = new Image();
+            img.src = canvas.toDataURL();
+            return img;
+        };
+
+        this.sprites = {
+            loaded: true,
+            floor: createSprite('#162447'),
+            wall: createSprite('#393e46', 'W'),
+            block: createSprite('#8B4513', 'B'),
+            blockCracked: createSprite('#A0522D', 'C'),
+            player: createSprite('#4ECCA3', 'P'),
+            waterSpell: createSprite('#4D96FF', 'W'),
+            shieldSpell: createSprite('#FFD700', 'S')
+        };
+    }
+
     init() {
+        // Попробуем загрузить спрайты, если не получится - сгенерируем
+        this.loadSprites();
+
+        // Если через 1 секунду спрайты не загрузились, создаем заглушки
+        setTimeout(() => {
+            if (!this.sprites.loaded) {
+                console.log('Создаем placeholder спрайты');
+                this.generatePlaceholderSprites();
+            }
+        }, 1000);
+
         this.setupCanvas();
         this.setupEventListeners();
         this.setupSocketListeners();
         this.render();
+    }
+
+    loadSprites() {
+        const spriteNames = [
+            'player', 'water_spell', 'shield_spell',
+            'wall', 'block', 'block_cracked', 'floor'
+        ];
+
+        let loadedCount = 0;
+        const totalSprites = spriteNames.length;
+
+        spriteNames.forEach(name => {
+            const img = new Image();
+            img.onload = () => {
+                loadedCount++;
+                this.sprites[name === 'water_spell' ? 'waterSpell' :
+                    name === 'shield_spell' ? 'shieldSpell' :
+                    name === 'block_cracked' ? 'blockCracked' : name] = img;
+
+                if (loadedCount === totalSprites) {
+                    this.sprites.loaded = true;
+                    console.log('Все спрайты загружены');
+                }
+            };
+
+            img.onerror = () => {
+                console.log(`Спрайт ${name}.png не найден, используем цветную отрисовку`);
+                loadedCount++;
+
+                if (loadedCount === totalSprites) {
+                    this.sprites.loaded = false; // Флаг, что спрайты не загружены
+                    console.log('Используем цветную отрисовку');
+                }
+            };
+
+            // Пытаемся загрузить из папки assets
+            img.src = `assets/${name}.png`;
+        });
+
+        // Таймаут на случай если файлы совсем не загрузятся
+        setTimeout(() => {
+            if (!this.sprites.loaded) {
+                console.log('Не удалось загрузить спрайты, используем цветную отрисовку');
+            }
+        }, 2000);
     }
 
     setupCanvas() {
@@ -516,26 +627,36 @@ class MagicBomberman {
     }
 
     renderMap() {
-        // Фон
-        this.ctx.fillStyle = '#162447';
-        this.ctx.fillRect(0, 0, this.gridSize * this.cellSize, this.gridSize * this.cellSize);
+        const gridWidth = this.gridSize * this.cellSize;
+        const gridHeight = this.gridSize * this.cellSize;
 
-        // Сетка
-        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-        this.ctx.lineWidth = 1;
+        if (this.sprites.loaded && this.sprites.floor) {
+            // Рендеринг текстурой пола
+            const pattern = this.ctx.createPattern(this.sprites.floor, 'repeat');
+            this.ctx.fillStyle = pattern;
+            this.ctx.fillRect(0, 0, gridWidth, gridHeight);
+        } else {
+            // Цветной фон
+            this.ctx.fillStyle = '#162447';
+            this.ctx.fillRect(0, 0, gridWidth, gridHeight);
 
-        for (let x = 0; x <= this.gridSize; x++) {
-            this.ctx.beginPath();
-            this.ctx.moveTo(x * this.cellSize, 0);
-            this.ctx.lineTo(x * this.cellSize, this.gridSize * this.cellSize);
-            this.ctx.stroke();
-        }
+            // Сетка (только при цветной отрисовке)
+            this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            this.ctx.lineWidth = 1;
 
-        for (let y = 0; y <= this.gridSize; y++) {
-            this.ctx.beginPath();
-            this.ctx.moveTo(0, y * this.cellSize);
-            this.ctx.lineTo(this.gridSize * this.cellSize, y * this.cellSize);
-            this.ctx.stroke();
+            for (let x = 0; x <= this.gridSize; x++) {
+                this.ctx.beginPath();
+                this.ctx.moveTo(x * this.cellSize, 0);
+                this.ctx.lineTo(x * this.cellSize, gridHeight);
+                this.ctx.stroke();
+            }
+
+            for (let y = 0; y <= this.gridSize; y++) {
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, y * this.cellSize);
+                this.ctx.lineTo(gridWidth, y * this.cellSize);
+                this.ctx.stroke();
+            }
         }
     }
 
@@ -548,27 +669,43 @@ class MagicBomberman {
 
             if (block.indestructible) {
                 // Несокрушимые стены
-                this.ctx.fillStyle = '#393e46';
-                this.ctx.fillRect(x, y, this.cellSize, this.cellSize);
+                if (this.sprites.loaded && this.sprites.wall) {
+                    this.ctx.drawImage(this.sprites.wall, x, y, this.cellSize, this.cellSize);
+                } else {
+                    // Цветная отрисовка
+                    this.ctx.fillStyle = '#393e46';
+                    this.ctx.fillRect(x, y, this.cellSize, this.cellSize);
 
-                this.ctx.strokeStyle = '#222831';
-                this.ctx.lineWidth = 2;
-                this.ctx.strokeRect(x + 2, y + 2, this.cellSize - 4, this.cellSize - 4);
+                    this.ctx.strokeStyle = '#222831';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.strokeRect(x + 2, y + 2, this.cellSize - 4, this.cellSize - 4);
+                }
             } else if (block.hp > 0) {
                 // Разрушаемые блоки
-                const opacity = 0.3 + (block.hp / 5) * 0.7;
-                this.ctx.fillStyle = `rgba(139, 69, 19, ${opacity})`;
-                this.ctx.fillRect(x + 2, y + 2, this.cellSize - 4, this.cellSize - 4);
+                if (this.sprites.loaded && this.sprites.block) {
+                    if (block.hp < 3 && this.sprites.blockCracked) {
+                        // Треснутый блок при низком HP
+                        this.ctx.drawImage(this.sprites.blockCracked, x, y, this.cellSize, this.cellSize);
+                    } else {
+                        // Целый блок
+                        this.ctx.drawImage(this.sprites.block, x, y, this.cellSize, this.cellSize);
+                    }
+                } else {
+                    // Цветная отрисовка
+                    const opacity = 0.3 + (block.hp / 5) * 0.7;
+                    this.ctx.fillStyle = `rgba(139, 69, 19, ${opacity})`;
+                    this.ctx.fillRect(x + 2, y + 2, this.cellSize - 4, this.cellSize - 4);
 
-                // Текстура блока
-                this.ctx.strokeStyle = `rgba(101, 67, 33, ${opacity})`;
-                this.ctx.lineWidth = 1;
+                    // Текстура блока
+                    this.ctx.strokeStyle = `rgba(101, 67, 33, ${opacity})`;
+                    this.ctx.lineWidth = 1;
 
-                for (let i = 0; i < 3; i++) {
-                    for (let j = 0; j < 3; j++) {
-                        const bx = x + 4 + i * 12;
-                        const by = y + 4 + j * 12;
-                        this.ctx.strokeRect(bx, by, 8, 8);
+                    for (let i = 0; i < 3; i++) {
+                        for (let j = 0; j < 3; j++) {
+                            const bx = x + 4 + i * 12;
+                            const by = y + 4 + j * 12;
+                            this.ctx.strokeRect(bx, by, 8, 8);
+                        }
                     }
                 }
             }
@@ -586,26 +723,31 @@ class MagicBomberman {
             this.ctx.translate(x, y);
 
             if (spell.type === 'water') {
-                // Водяной выстрел
-                const gradient = this.ctx.createRadialGradient(0, 0, 5, 0, 0, 15);
-                gradient.addColorStop(0, 'rgba(77, 150, 255, 0.8)');
-                gradient.addColorStop(1, 'rgba(77, 150, 255, 0.2)');
+                if (this.sprites.loaded && this.sprites.waterSpell) {
+                    // Спрайт водяного заклинания
+                    this.ctx.rotate(spell.direction);
+                    this.ctx.drawImage(this.sprites.waterSpell, -this.cellSize / 2, -this.cellSize / 2, this.cellSize, this.cellSize);
+                } else {
+                    // Цветная отрисовка
+                    const gradient = this.ctx.createRadialGradient(0, 0, 5, 0, 0, 15);
+                    gradient.addColorStop(0, 'rgba(77, 150, 255, 0.8)');
+                    gradient.addColorStop(1, 'rgba(77, 150, 255, 0.2)');
 
-                this.ctx.fillStyle = gradient;
-                this.ctx.beginPath();
-                this.ctx.arc(0, 0, 15, 0, Math.PI * 2);
-                this.ctx.fill();
+                    this.ctx.fillStyle = gradient;
+                    this.ctx.beginPath();
+                    this.ctx.arc(0, 0, 15, 0, Math.PI * 2);
+                    this.ctx.fill();
 
-                // Направление
-                this.ctx.rotate(spell.direction);
-                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-                this.ctx.fillRect(0, -3, 20, 6);
+                    // Направление
+                    this.ctx.rotate(spell.direction);
+                    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                    this.ctx.fillRect(0, -3, 20, 6);
+                }
             }
 
             this.ctx.restore();
         });
     }
-    
     renderPlayers() {
         if (!this.gameState.players) return;
 
