@@ -1,0 +1,502 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background: #1a1a2e;
+    color: white;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    position: fixed;
+}
+
+/* Блокировка масштабирования браузера */
+html {
+    touch-action: pan-x pan-y;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* Верхняя панель */
+.top-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: linear-gradient(135deg, #0f3460 0%, #1a1a2e 100%);
+    border-bottom: 3px solid #ffd700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 0 20px;
+}
+
+.player-info {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+}
+
+.nickname {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 5px 15px;
+    border-radius: 20px;
+    border: 2px solid #4ecca3;
+    min-width: 100px;
+    text-align: center;
+    font-weight: bold;
+    cursor: text;
+    transition: all 0.3s;
+}
+
+.nickname:focus {
+    outline: none;
+    background: rgba(255, 255, 255, 0.2);
+    border-color: #ffd700;
+}
+
+.health,
+.shield,
+.score {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: bold;
+    padding: 5px 10px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.health {
+    color: #ff6b6b;
+    border: 1px solid #ff6b6b;
+}
+
+.shield {
+    color: #4d96ff;
+    border: 1px solid #4d96ff;
+}
+
+.score {
+    color: #ffd700;
+    border: 1px solid #ffd700;
+}
+
+/* Игровое поле */
+#gameCanvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #162447;
+    z-index: 1;
+}
+
+/* Джостик */
+.joystick {
+    position: fixed;
+    left: 20px;
+    bottom: calc(12.5vh + 10px);
+    /* 2/8 от низа */
+    width: 180px;
+    height: 120px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.joystick-row {
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+}
+
+.joy-btn {
+    width: 60px;
+    height: 60px;
+    border: none;
+    border-radius: 15px;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 3px solid #ffd700;
+    color: white;
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.1s;
+}
+
+.joy-btn:active {
+    background: rgba(255, 215, 0, 0.3);
+    transform: scale(0.95);
+}
+
+.up-btn {
+    margin: 0 auto;
+}
+
+/* Панель заклинаний */
+.spells-panel {
+    position: fixed;
+    right: 20px;
+    bottom: calc(12.5vh + 80px);
+    /* Над кнопкой CAST */
+    width: 80px;
+    max-height: 50vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+    z-index: 1000;
+    padding: 10px;
+    border-radius: 15px;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px);
+    border: 2px solid #4ecca3;
+}
+
+/* Скрыть скроллбар для WebKit браузеров */
+.spells-panel::-webkit-scrollbar {
+    display: none;
+}
+
+.spells-panel {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.spell-slot {
+    width: 60px;
+    height: 60px;
+    border-radius: 15px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+}
+
+.spell-slot.empty {
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px dashed rgba(255, 255, 255, 0.3);
+    font-size: 24px;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.spell-slot.filled {
+    background: rgba(78, 204, 163, 0.2);
+    border: 2px solid #4ecca3;
+}
+
+.spell-slot.selected {
+    border-color: #ffd700;
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+}
+
+.spell-icon {
+    font-size: 24px;
+    margin-bottom: 2px;
+}
+
+.spell-stats {
+    font-size: 10px;
+    opacity: 0.8;
+}
+
+.water-icon {
+    color: #4d96ff;
+}
+
+.shield-icon {
+    color: #ffd700;
+}
+
+/* Кнопка CAST */
+.cast-btn {
+    position: fixed;
+    right: 20px;
+    bottom: calc(12.5vh + 10px);
+    /* 2/8 от низа */
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
+    border: 3px solid #ffd700;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 1000;
+    transition: all 0.2s;
+    box-shadow: 0 5px 15px rgba(255, 65, 108, 0.4);
+}
+
+.cast-btn:active {
+    transform: scale(0.95);
+    box-shadow: 0 2px 10px rgba(255, 65, 108, 0.4);
+}
+
+.cast-text {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.cast-hint {
+    font-size: 12px;
+    opacity: 0.8;
+    margin-top: 2px;
+}
+
+/* Модальные окна */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    display: none;
+}
+
+.modal.active {
+    display: flex;
+}
+
+.modal-content {
+    background: linear-gradient(135deg, #0f3460 0%, #1a1a2e 100%);
+    border-radius: 20px;
+    padding: 30px;
+    max-width: 500px;
+    width: 90%;
+    border: 3px solid #4ecca3;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.modal-content h3 {
+    text-align: center;
+    margin-bottom: 20px;
+    color: #ffd700;
+}
+
+.spell-options {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.spell-option {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    padding: 15px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    cursor: pointer;
+    transition: all 0.3s;
+    border: 2px solid transparent;
+}
+
+.spell-option:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: #4ecca3;
+}
+
+.spell-name {
+    font-weight: bold;
+    color: #4ecca3;
+}
+
+.spell-desc {
+    font-size: 12px;
+    opacity: 0.8;
+    margin-left: auto;
+}
+
+.spell-config {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.spell-preview {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 15px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 15px;
+}
+
+.slider-container {
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 15px;
+}
+
+.slider-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    font-weight: bold;
+}
+
+.label-left {
+    color: #4d96ff;
+}
+
+.label-right {
+    color: #ff6b6b;
+}
+
+.slider {
+    width: 100%;
+    height: 25px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: linear-gradient(to right, #4d96ff, #ff6b6b);
+    border-radius: 12px;
+    outline: none;
+    margin: 15px 0;
+}
+
+.slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    background: #ffd700;
+    cursor: pointer;
+    border: 3px solid white;
+}
+
+.slider-values {
+    display: flex;
+    justify-content: space-between;
+    font-weight: bold;
+    margin-top: 15px;
+}
+
+.spell-info {
+    text-align: center;
+    margin-top: 10px;
+    opacity: 0.8;
+}
+
+.config-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+.btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 10px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.btn-save {
+    background: #4ecca3;
+    color: white;
+}
+
+.btn-delete {
+    background: #ff6b6b;
+    color: white;
+}
+
+.btn-cancel {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.btn:hover {
+    opacity: 0.9;
+    transform: translateY(-2px);
+}
+
+.modal-close {
+    width: 100%;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 10px;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 20px;
+}
+
+/* Индикатор каста */
+.cast-indicator {
+    position: fixed;
+    pointer-events: none;
+    z-index: 500;
+    display: none;
+}
+
+.cast-indicator.active {
+    display: block;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .joystick {
+        bottom: 20px;
+        left: 20px;
+    }
+
+    .spells-panel {
+        bottom: 100px;
+        max-height: 40vh;
+    }
+
+    .cast-btn {
+        bottom: 20px;
+        right: 20px;
+    }
+
+    .player-info {
+        gap: 10px;
+        font-size: 14px;
+    }
+}
+
+@media (max-height: 600px) {
+    .top-panel {
+        height: 50px;
+    }
+
+    .spells-panel {
+        max-height: 30vh;
+    }
+}

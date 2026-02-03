@@ -5,656 +5,477 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server);
+const io = socketIo(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
+const PORT = process.env.PORT || 3000;
 
 // Конфигурация игры
-const CONFIG = {
-  FIELD_SIZE: 21,
-  CELL_SIZE: 40,
-  BLOCK_DURABILITY: 5,
-  BLOCK_RESPAWN_TIME: 10000, // 10 секунд
-  PLAYER_HP: 10,
-  SPELL_SPEED: 300, // пикселей в секунду
-  VIEW_RADIUS: 10,
-};
+const GRID_SIZE = 21;
+const CELL_SIZE = 40;
+const INITIAL_PLAYER_HP = 10;
+const BLOCK_HP = 5;
+const RESPAWN_TIME = 3000; // 3 секунды
+const BLOCK_RESPAWN_INTERVAL = 10000; // 10 секунд
 
 // Игровое состояние
 let gameState = {
-  players: new Map(),
-  blocks: new Map(),
-  spells: new Map(),
-  gameId: Date.now(),
+  players: {},
+  spells: [],
+  blocks: [],
+  lastBlockRespawn: Date.now()
 };
 
-// Генерация игрового поля
-function generateField() {
-  const blocks = new Map();
+// Генерация карты
+function generateMap() {
+  const blocks = [];
 
   // Несокрушимые стены по периметру
-  for (let x = 0; x < CONFIG.FIELD_SIZE; x++) {
-    for (let y = 0; y < CONFIG.FIELD_SIZE; y++) {
-      if (x === 0 || y === 0 || x === CONFIG.FIELD_SIZE - 1 || y === CONFIG.FIELD_SIZE - 1) {
-        blocks.set(`${x},${y}`, {
-          type: 'wall',
-          durability: Infinity
-        });
-      }
-      // Шахматный порядок внутренних стен
-      else if (x % 2 === 0 && y % 2 === 0) {
-        blocks.set(`${x},${y}`, {
-          type: 'wall',
-          durability: Infinity
-        });
-      }
-    }
-  }
-
-  // Разрушаемые блоки (30% свободных клеток)
-  const freeCells = [];
-  for (let x = 1; x < CONFIG.FIELD_SIZE - 1; x++) {
-    for (let y = 1; y < CONFIG.FIELD_SIZE - 1; y++) {
-      if (!blocks.has(`${x},${y}`) &&
-        !(x % 2 === 0 && y % 2 === 0)) {
-        freeCells.push({
+  for (let x = 0; x < GRID_SIZE; x++) {
+    for (let y = 0; y < GRID_SIZE; y++) {
+      // Стены по краям
+      if (x === 0 || y === 0 || x === GRID_SIZE - 1 || y === GRID_SIZE - 1) {
+        blocks.push({
           x,
-          y
+          y,
+          hp: -1,
+          indestructible: true
+        });
+      }
+      // Шахматный порядок внутренних стен (каждая 2я клетка)
+      else if (x % 2 === 0 && y % 2 === 0) {
+        blocks.push({
+          x,
+          y,
+          hp: -1,
+          indestructible: true
+        });
+      }
+      // Разрушаемые блоки (30% свободных клеток)
+      else if (Math.random() < 0.3 && x > 1 && x < GRID_SIZE - 2 && y > 1 && y < GRID_SIZE - 2) {
+        blocks.push({
+          x,
+          y,
+          hp: BLOCK_HP,
+          indestructible: false
         });
       }
     }
-  }
-
-  const blockCount = Math.floor(freeCells.length * 0.3);
-  for (let i = 0; i < blockCount; i++) {
-    const randomIndex = Math.floor(Math.random() * freeCells.length);
-    const cell = freeCells[randomIndex];
-    blocks.set(`${cell.x},${cell.y}`, {
-      type: 'destructible',
-      durability: CONFIG.BLOCK_DURABILITY,
-      id: `block_${Date.now()}_${i}`
-    });
-    freeCells.splice(randomIndex, 1);
   }
 
   return blocks;
 }
 
-// Инициализация поля
-gameState.blocks = generateField();
+// Получить случайную свободную позицию
+function getRandomSpawnPosition() {
+  let attempts = 0;
+  while (attempts < 100) {
+    const x = Math.floor(Math.random() * (GRID_SIZE - 4)) + 2;
+    const y = Math.floor(Math.random() * (GRID_SIZE - 4)) + 2;
 
-// Таймер респавна блоков
-setInterval(() => {
-  const freeCells = [];
-  for (let x = 1; x < CONFIG.FIELD_SIZE - 1; x++) {
-    for (let y = 1; y < CONFIG.FIELD_SIZE - 1; y++) {
-      const key = `${x},${y}`;
-      if (!gameState.blocks.has(key) &&
-        !(x % 2 === 0 && y % 2 === 0)) {
-        freeCells.push({
-          x,
-          y
-        });
-      }
-    }
-  }
+    const isBlocked = gameState.blocks.some(block =>
+      block.x === x && block.y === y && !block.indestructible
+    );
 
-  if (freeCells.length > 0) {
-    const randomIndex = Math.floor(Math.random() * freeCells.length);
-    const cell = freeCells[randomIndex];
-    const key = `${cell.x},${cell.y}`;
+    const hasPlayer = Object.values(gameState.players).some(player =>
+      Math.floor(player.x) === x && Math.floor(player.y) === y
+    );
 
-    if (!Array.from(gameState.players.values()).some(p =>
-        Math.floor(p.x) === cell.x && Math.floor(p.y) === cell.y)) {
-
-      gameState.blocks.set(key, {
-        type: 'destructible',
-        durability: CONFIG.BLOCK_DURABILITY,
-        id: `block_${Date.now()}`
-      });
-
-      io.emit('block_added', {
-        x: cell.x,
-        y: cell.y,
-        block: gameState.blocks.get(key)
-      });
-    }
-  }
-}, CONFIG.BLOCK_RESPAWN_TIME);
-
-// Функция для получения свободной стартовой позиции
-function getStartPosition() {
-  const positions = [{
-      x: 1,
-      y: 1
-    },
-    {
-      x: CONFIG.FIELD_SIZE - 2,
-      y: 1
-    },
-    {
-      x: 1,
-      y: CONFIG.FIELD_SIZE - 2
-    },
-    {
-      x: CONFIG.FIELD_SIZE - 2,
-      y: CONFIG.FIELD_SIZE - 2
-    },
-  ];
-
-  for (const pos of positions) {
-    const key = `${pos.x},${pos.y}`;
-    if (!gameState.blocks.has(key) &&
-      !Array.from(gameState.players.values()).some(p =>
-        Math.floor(p.x) === pos.x && Math.floor(p.y) === pos.y)) {
-      return pos;
-    }
-  }
-
-  // Если все заняты, ищем случайную свободную клетку
-  for (let i = 0; i < 100; i++) {
-    const x = Math.floor(Math.random() * (CONFIG.FIELD_SIZE - 2)) + 1;
-    const y = Math.floor(Math.random() * (CONFIG.FIELD_SIZE - 2)) + 1;
-    const key = `${x},${y}`;
-
-    if (!gameState.blocks.has(key) &&
-      !(x % 2 === 0 && y % 2 === 0) &&
-      !Array.from(gameState.players.values()).some(p =>
-        Math.floor(p.x) === x && Math.floor(p.y) === y)) {
+    if (!isBlocked && !hasPlayer) {
       return {
-        x,
-        y
+        x: x + 0.5,
+        y: y + 0.5
       };
     }
+
+    attempts++;
   }
 
+  // Если не нашли случайную позицию, возвращаем центр
   return {
-    x: 1,
-    y: 1
+    x: Math.floor(GRID_SIZE / 2) + 0.5,
+    y: Math.floor(GRID_SIZE / 2) + 0.5
   };
 }
 
-// Статичные файлы
-app.use(express.static(path.join(__dirname, 'public')));
+// Проверить коллизии
+function checkCollision(x, y, ignorePlayerId = null) {
+  // Проверить границы карты
+  if (x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE) {
+    return true;
+  }
 
-// Socket.IO обработчики
+  // Проверить блоки
+  const block = gameState.blocks.find(b =>
+    Math.floor(b.x) === Math.floor(x) && Math.floor(b.y) === Math.floor(y)
+  );
+
+  if (block && !block.indestructible && block.hp > 0) {
+    return true;
+  }
+
+  // Проверить других игроков
+  for (const [id, player] of Object.entries(gameState.players)) {
+    if (id !== ignorePlayerId &&
+      Math.floor(player.x) === Math.floor(x) &&
+      Math.floor(player.y) === Math.floor(y) &&
+      player.hp > 0) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// Обновить блоки (респавн каждые 10 секунд)
+function updateBlocks() {
+  const now = Date.now();
+  if (now - gameState.lastBlockRespawn >= BLOCK_RESPAWN_INTERVAL) {
+    // Удалить разрушенные блоки
+    gameState.blocks = gameState.blocks.filter(block =>
+      block.indestructible || block.hp > 0
+    );
+
+    // Добавить новые блоки в случайные свободные клетки
+    const emptyCells = [];
+    for (let x = 2; x < GRID_SIZE - 2; x++) {
+      for (let y = 2; y < GRID_SIZE - 2; y++) {
+        if ((x % 2 !== 0 || y % 2 !== 0) &&
+          !gameState.blocks.some(b => b.x === x && b.y === y) &&
+          !Object.values(gameState.players).some(p =>
+            Math.floor(p.x) === x && Math.floor(p.y) === y
+          )) {
+          emptyCells.push({
+            x,
+            y
+          });
+        }
+      }
+    }
+
+    // Добавить блоки в 30% свободных клеток
+    const blocksToAdd = Math.floor(emptyCells.length * 0.3);
+    for (let i = 0; i < blocksToAdd; i++) {
+      if (emptyCells.length > 0) {
+        const index = Math.floor(Math.random() * emptyCells.length);
+        const cell = emptyCells.splice(index, 1)[0];
+        gameState.blocks.push({
+          x: cell.x,
+          y: cell.y,
+          hp: BLOCK_HP,
+          indestructible: false
+        });
+      }
+    }
+
+    gameState.lastBlockRespawn = now;
+  }
+}
+
+// Инициализировать карту
+gameState.blocks = generateMap();
+
+// Интервал обновления игры
+setInterval(() => {
+  updateBlocks();
+
+  // Обновить заклинания
+  gameState.spells = gameState.spells.filter(spell => {
+    // Движение заклинания
+    spell.x += Math.cos(spell.direction) * 0.1;
+    spell.y += Math.sin(spell.direction) * 0.1;
+    spell.distance += 0.1;
+
+    // Уменьшение урона с расстоянием
+    spell.currentDamage = Math.max(0, spell.power - Math.floor(spell.distance));
+
+    // Проверить выход за границы
+    if (spell.x < 0 || spell.x >= GRID_SIZE || spell.y < 0 || spell.y >= GRID_SIZE) {
+      return false;
+    }
+
+    // Проверить попадание в блок
+    const block = gameState.blocks.find(b =>
+      Math.floor(b.x) === Math.floor(spell.x) &&
+      Math.floor(b.y) === Math.floor(spell.y) &&
+      !b.indestructible &&
+      b.hp > 0
+    );
+
+    if (block) {
+      block.hp -= spell.currentDamage;
+      if (block.hp <= 0) {
+        // Начислить очки за разрушение блока
+        if (gameState.players[spell.casterId]) {
+          gameState.players[spell.casterId].score += 10;
+        }
+      }
+      return false;
+    }
+
+    // Проверить попадание в игрока
+    for (const [id, player] of Object.entries(gameState.players)) {
+      if (id !== spell.casterId &&
+        player.hp > 0 &&
+        Math.floor(player.x) === Math.floor(spell.x) &&
+        Math.floor(player.y) === Math.floor(spell.y)) {
+
+        const damage = spell.currentDamage;
+
+        // Сначала тратится щит
+        if (player.shield > 0) {
+          const shieldDamage = Math.min(player.shield, damage);
+          player.shield -= shieldDamage;
+          const remainingDamage = damage - shieldDamage;
+
+          if (remainingDamage > 0) {
+            player.hp = Math.max(0, player.hp - remainingDamage);
+          }
+        } else {
+          player.hp = Math.max(0, player.hp - damage);
+        }
+
+        // Начислить очки за попадание
+        if (gameState.players[spell.casterId]) {
+          gameState.players[spell.casterId].score += damage * 5;
+        }
+
+        // Если игрок убит
+        if (player.hp <= 0) {
+          player.respawnTime = Date.now() + RESPAWN_TIME;
+
+          // Начислить очки за убийство
+          if (gameState.players[spell.casterId]) {
+            gameState.players[spell.casterId].score += player.score;
+            player.score = 0;
+          }
+        }
+
+        return false;
+      }
+    }
+
+    // Максимальная дистанция
+    return spell.distance < spell.power * 2;
+  });
+
+  // Проверить респавн игроков
+  const now = Date.now();
+  for (const player of Object.values(gameState.players)) {
+    if (player.hp <= 0 && player.respawnTime && now >= player.respawnTime) {
+      const spawnPos = getRandomSpawnPosition();
+      player.x = spawnPos.x;
+      player.y = spawnPos.y;
+      player.hp = INITIAL_PLAYER_HP;
+      player.shield = 0;
+      player.respawnTime = null;
+    }
+  }
+
+  // Отправить обновленное состояние всем клиентам
+  io.emit('gameState', gameState);
+}, 50); // 20 FPS
+
+// Обработка подключений Socket.IO
 io.on('connection', (socket) => {
-  console.log('Новое подключение:', socket.id);
+  console.log(`Player connected: ${socket.id}`);
 
-  // Инициализация игрока
-  const startPos = getStartPosition();
-  const player = {
+  // Инициализация нового игрока
+  const spawnPos = getRandomSpawnPosition();
+  gameState.players[socket.id] = {
     id: socket.id,
-    nickname: `Игрок_${socket.id.slice(0, 4)}`,
-    x: startPos.x,
-    y: startPos.y,
-    direction: 'down',
-    hp: CONFIG.PLAYER_HP,
-    maxHp: CONFIG.PLAYER_HP,
+    x: spawnPos.x,
+    y: spawnPos.y,
+    direction: 0,
+    hp: INITIAL_PLAYER_HP,
     shield: 0,
     score: 0,
-    isCasting: false,
-    castProgress: 0,
-    selectedSpell: 0,
+    nickname: `Player${Math.floor(Math.random() * 1000)}`,
     spells: [{
         type: 'water',
-        speed: 6,
-        power: 5,
-        name: '💧 Водяной выстрел'
+        speed: 5,
+        power: 6
       },
       {
         type: 'shield',
-        speed: 6,
-        power: 5,
-        name: '🛡️ Щит'
+        speed: 3,
+        power: 8
       },
       null // Пустой слот
     ],
-    lastMove: Date.now(),
-    color: `hsl(${Math.random() * 360}, 70%, 60%)`
+    casting: null,
+    lastCastTime: 0
   };
 
-  gameState.players.set(socket.id, player);
-
-  // Отправляем начальное состояние новому игроку
+  // Отправить текущее состояние новому игроку
   socket.emit('init', {
-    player,
-    gameState: {
-      players: Array.from(gameState.players.values()),
-      blocks: Array.from(gameState.blocks.entries()),
-      fieldSize: CONFIG.FIELD_SIZE,
-      cellSize: CONFIG.CELL_SIZE
-    }
+    playerId: socket.id,
+    gridSize: GRID_SIZE,
+    cellSize: CELL_SIZE
   });
+  socket.emit('gameState', gameState);
 
-  // Уведомляем других игроков
-  socket.broadcast.emit('player_joined', player);
-
-  // Обработка движения
-  socket.on('move', (data) => {
-    const player = gameState.players.get(socket.id);
+  // Движение игрока
+  socket.on('move', (direction) => {
+    const player = gameState.players[socket.id];
     if (!player || player.hp <= 0) return;
 
-    const {
-      direction
-    } = data;
     let newX = player.x;
     let newY = player.y;
 
     switch (direction) {
       case 'up':
         newY -= 1;
-        player.direction = 'up';
         break;
       case 'down':
         newY += 1;
-        player.direction = 'down';
         break;
       case 'left':
         newX -= 1;
-        player.direction = 'left';
         break;
       case 'right':
         newX += 1;
-        player.direction = 'right';
         break;
     }
 
-    // Проверка коллизий
-    const cellX = Math.floor(newX);
-    const cellY = Math.floor(newY);
-    const blockKey = `${cellX},${cellY}`;
-    const block = gameState.blocks.get(blockKey);
+    // Проверить коллизию
+    if (!checkCollision(newX, newY, socket.id)) {
+      player.x = newX;
+      player.y = newY;
 
-    if (block && block.type === 'wall') {
-      return; // Непроходимая стена
-    }
-
-    // Проверка на выход за границы
-    if (newX < 0.5 || newX > CONFIG.FIELD_SIZE - 1.5 ||
-      newY < 0.5 || newY > CONFIG.FIELD_SIZE - 1.5) {
-      return;
-    }
-
-    // Проверка на столкновение с другими игроками
-    const collidesWithPlayer = Array.from(gameState.players.values())
-      .some(p => p.id !== socket.id &&
-        Math.floor(p.x) === cellX &&
-        Math.floor(p.y) === cellY);
-
-    if (collidesWithPlayer) {
-      return;
-    }
-
-    player.x = newX;
-    player.y = newY;
-    player.lastMove = Date.now();
-
-    io.emit('player_moved', {
-      id: socket.id,
-      x: player.x,
-      y: player.y,
-      direction: player.direction
-    });
-  });
-
-  // Обработка каста заклинания
-  socket.on('cast_spell', (data) => {
-    const player = gameState.players.get(socket.id);
-    if (!player || player.hp <= 0 || player.isCasting) return;
-
-    const {
-      spellIndex
-    } = data;
-    const spell = player.spells[spellIndex];
-    if (!spell) return;
-
-    player.isCasting = true;
-    player.castProgress = 0;
-    player.selectedSpell = spellIndex;
-
-    // Анимация каста
-    const castTime = spell.speed * 100; // 2 очка = 1 секунда
-
-    io.emit('casting_started', {
-      playerId: socket.id,
-      spellIndex,
-      castTime
-    });
-
-    const castInterval = setInterval(() => {
-      player.castProgress += 100 / (castTime / 100);
-
-      io.emit('casting_progress', {
-        playerId: socket.id,
-        progress: player.castProgress
-      });
-
-      if (player.castProgress >= 100) {
-        clearInterval(castInterval);
-        player.isCasting = false;
-
-        // Создание заклинания
-        const spellId = `spell_${Date.now()}_${socket.id}`;
-        const spellData = {
-          id: spellId,
-          type: spell.type,
-          ownerId: socket.id,
-          x: player.x,
-          y: player.y,
-          direction: player.direction,
-          power: spell.power,
-          speed: CONFIG.SPELL_SPEED,
-          distance: 0,
-          maxDistance: spell.power * 3
-        };
-
-        gameState.spells.set(spellId, spellData);
-
-        // Запуск движения заклинания
-        moveSpell(spellId);
-
-        // Применение щита
-        if (spell.type === 'shield') {
-          player.shield = spell.power * 2; // Щит = сила * 2 HP
-          io.emit('player_updated', {
-            id: socket.id,
-            shield: player.shield
-          });
-        }
-
-        io.emit('spell_cast', {
-          playerId: socket.id,
-          spell: spellData
-        });
-      }
-    }, 100);
-  });
-
-  // Функция движения заклинания
-  function moveSpell(spellId) {
-    const spell = gameState.spells.get(spellId);
-    if (!spell) return;
-
-    const moveInterval = setInterval(() => {
-      if (!gameState.spells.has(spellId)) {
-        clearInterval(moveInterval);
-        return;
-      }
-
-      let newX = spell.x;
-      let newY = spell.y;
-
-      switch (spell.direction) {
+      // Обновить направление
+      switch (direction) {
         case 'up':
-          newY -= 0.1;
+          player.direction = -Math.PI / 2;
           break;
         case 'down':
-          newY += 0.1;
+          player.direction = Math.PI / 2;
           break;
         case 'left':
-          newX -= 0.1;
+          player.direction = Math.PI;
           break;
         case 'right':
-          newX += 0.1;
+          player.direction = 0;
           break;
       }
-
-      spell.x = newX;
-      spell.y = newY;
-      spell.distance += 0.1;
-
-      // Проверка столкновений
-      const cellX = Math.floor(newX);
-      const cellY = Math.floor(newY);
-
-      // Стена
-      const wallKey = `${cellX},${cellY}`;
-      const wallBlock = gameState.blocks.get(wallKey);
-      if (wallBlock && wallBlock.type === 'wall') {
-        io.emit('spell_hit', {
-          spellId,
-          target: 'wall',
-          x: cellX,
-          y: cellY
-        });
-        gameState.spells.delete(spellId);
-        clearInterval(moveInterval);
-        return;
-      }
-
-      // Разрушаемый блок
-      if (wallBlock && wallBlock.type === 'destructible') {
-        const damage = Math.max(spell.power - Math.floor(spell.distance), 1);
-        wallBlock.durability -= damage;
-
-        io.emit('spell_hit', {
-          spellId,
-          target: 'block',
-          x: cellX,
-          y: cellY,
-          damage,
-          remainingDurability: wallBlock.durability
-        });
-
-        if (wallBlock.durability <= 0) {
-          gameState.blocks.delete(wallKey);
-
-          // Начисление очков
-          const owner = gameState.players.get(spell.ownerId);
-          if (owner) {
-            owner.score += 10;
-            io.emit('player_updated', {
-              id: owner.id,
-              score: owner.score
-            });
-          }
-        }
-
-        // Уменьшение силы заклинания
-        spell.power -= damage;
-        if (spell.power <= 0) {
-          gameState.spells.delete(spellId);
-          clearInterval(moveInterval);
-          return;
-        }
-      }
-
-      // Игроки
-      Array.from(gameState.players.values()).forEach(targetPlayer => {
-        if (targetPlayer.id === spell.ownerId) return; // Не попадаем в себя
-        if (targetPlayer.hp <= 0) return;
-
-        const distance = Math.sqrt(
-          Math.pow(newX - targetPlayer.x, 2) +
-          Math.pow(newY - targetPlayer.y, 2)
-        );
-
-        if (distance < 0.5) { // Попадание
-          const damage = Math.max(spell.power - Math.floor(spell.distance), 1);
-
-          // Сначала щит
-          if (targetPlayer.shield > 0) {
-            const shieldDamage = Math.min(targetPlayer.shield, damage);
-            targetPlayer.shield -= shieldDamage;
-            remainingDamage = damage - shieldDamage;
-          } else {
-            remainingDamage = damage;
-          }
-
-          // Затем HP
-          if (remainingDamage > 0) {
-            targetPlayer.hp = Math.max(0, targetPlayer.hp - remainingDamage);
-          }
-
-          io.emit('player_hit', {
-            targetId: targetPlayer.id,
-            damage,
-            newHp: targetPlayer.hp,
-            newShield: targetPlayer.shield,
-            attackerId: spell.ownerId
-          });
-
-          // Начисление очков за попадание
-          const owner = gameState.players.get(spell.ownerId);
-          if (owner && remainingDamage > 0) {
-            owner.score += remainingDamage * 5;
-            io.emit('player_updated', {
-              id: owner.id,
-              score: owner.score
-            });
-          }
-
-          // Смерть игрока
-          if (targetPlayer.hp <= 0) {
-            targetPlayer.hp = 0;
-            io.emit('player_died', {
-              playerId: targetPlayer.id,
-              killerId: spell.ownerId
-            });
-
-            // Возрождение через 3 секунды
-            setTimeout(() => {
-              if (gameState.players.has(targetPlayer.id)) {
-                const startPos = getStartPosition();
-                targetPlayer.x = startPos.x;
-                targetPlayer.y = startPos.y;
-                targetPlayer.hp = CONFIG.PLAYER_HP;
-                targetPlayer.shield = 0;
-                // Сохраняем ник, настройки, но сбрасываем очки
-                const scoreToAdd = targetPlayer.score;
-                targetPlayer.score = 0;
-
-                io.emit('player_respawned', {
-                  id: targetPlayer.id,
-                  x: targetPlayer.x,
-                  y: targetPlayer.y,
-                  hp: targetPlayer.hp
-                });
-
-                // Начисление очков убийце
-                const killer = gameState.players.get(spell.ownerId);
-                if (killer) {
-                  killer.score += scoreToAdd;
-                  io.emit('player_updated', {
-                    id: killer.id,
-                    score: killer.score
-                  });
-                }
-              }
-            }, 3000);
-          }
-
-          gameState.spells.delete(spellId);
-          clearInterval(moveInterval);
-        }
-      });
-
-      // Максимальная дистанция
-      if (spell.distance >= spell.maxDistance) {
-        io.emit('spell_disappeared', {
-          spellId
-        });
-        gameState.spells.delete(spellId);
-        clearInterval(moveInterval);
-      } else {
-        io.emit('spell_moved', {
-          spellId,
-          x: spell.x,
-          y: spell.y
-        });
-      }
-    }, 50);
-  }
-
-  // Редактирование никнейма
-  socket.on('update_nickname', (data) => {
-    const player = gameState.players.get(socket.id);
-    if (player && data.nickname && data.nickname.trim().length > 0) {
-      player.nickname = data.nickname.substring(0, 15);
-      io.emit('player_updated', {
-        id: socket.id,
-        nickname: player.nickname
-      });
     }
   });
 
-  // Редактирование заклинания
-  socket.on('update_spell', (data) => {
-    const player = gameState.players.get(socket.id);
-    if (!player) return;
+  // Каст заклинания
+  socket.on('castSpell', ({
+    spellIndex
+  }) => {
+    const player = gameState.players[socket.id];
+    if (!player || player.hp <= 0 || !player.spells[spellIndex]) return;
 
-    const {
-      spellIndex,
-      type,
-      speed,
-      power
-    } = data;
+    const spell = player.spells[spellIndex];
+    const now = Date.now();
 
-    // Проверка диапазонов
-    if (speed < 1 || speed > 10 || power < 1 || power > 10) return;
+    // Проверить кулдаун
+    if (now - player.lastCastTime < spell.speed * 100) {
+      return;
+    }
 
-    if (spellIndex < player.spells.length) {
-      player.spells[spellIndex] = {
-        type,
-        speed,
-        power,
-        name: type === 'water' ? '💧 Водяной выстрел' : '🛡️ Щит'
-      };
+    player.casting = {
+      index: spellIndex,
+      startTime: now,
+      duration: spell.speed * 100
+    };
+    player.lastCastTime = now;
 
-      // Автоматическое добавление нового слота
-      if (spellIndex === player.spells.length - 1 && player.spells.length < 8) {
-        player.spells.push(null);
-      }
+    // Если это щит - сразу применить
+    if (spell.type === 'shield') {
+      setTimeout(() => {
+        player.shield = spell.power * 2;
+        player.casting = null;
+      }, spell.speed * 100);
+    }
+  });
 
-      io.emit('player_updated', {
-        id: socket.id,
-        spells: player.spells
+  // Завершение каста (для водяного выстрела)
+  socket.on('castComplete', () => {
+    const player = gameState.players[socket.id];
+    if (!player || !player.casting || player.hp <= 0) return;
+
+    const spell = player.spells[player.casting.index];
+    if (spell.type === 'water') {
+      // Создать заклинание
+      gameState.spells.push({
+        id: `${socket.id}-${Date.now()}`,
+        casterId: socket.id,
+        type: 'water',
+        x: player.x,
+        y: player.y,
+        direction: player.direction,
+        power: spell.power,
+        currentDamage: spell.power,
+        distance: 0
       });
+    }
+
+    player.casting = null;
+  });
+
+  // Обновление никнейма
+  socket.on('updateNickname', (nickname) => {
+    if (gameState.players[socket.id]) {
+      gameState.players[socket.id].nickname = nickname.substring(0, 20);
+    }
+  });
+
+  // Обновление заклинаний
+  socket.on('updateSpell', ({
+    index,
+    spell
+  }) => {
+    const player = gameState.players[socket.id];
+    if (player && index >= 0 && index < 8) {
+      if (!player.spells[index]) {
+        player.spells[index] = spell;
+        // Добавить пустой слот, если заполнен последний
+        if (index === player.spells.length - 1 && player.spells.length < 8) {
+          player.spells.push(null);
+        }
+      } else {
+        player.spells[index] = spell;
+      }
     }
   });
 
   // Удаление заклинания
-  socket.on('remove_spell', (data) => {
-    const player = gameState.players.get(socket.id);
-    if (!player) return;
-
-    const {
-      spellIndex
-    } = data;
-    if (spellIndex < player.spells.length && player.spells[spellIndex]) {
-      player.spells[spellIndex] = null;
-
-      io.emit('player_updated', {
-        id: socket.id,
-        spells: player.spells
-      });
-    }
-  });
-
-  // Выбор заклинания
-  socket.on('select_spell', (data) => {
-    const player = gameState.players.get(socket.id);
-    if (player) {
-      player.selectedSpell = data.spellIndex;
-      io.emit('player_updated', {
-        id: socket.id,
-        selectedSpell: player.selectedSpell
-      });
+  socket.on('removeSpell', (index) => {
+    const player = gameState.players[socket.id];
+    if (player && player.spells[index]) {
+      player.spells[index] = null;
+      // Убрать пустые слоты в конце
+      while (player.spells.length > 0 && !player.spells[player.spells.length - 1]) {
+        player.spells.pop();
+      }
+      // Всегда оставить хотя бы один пустой слот
+      if (player.spells.length < 8 && (!player.spells[player.spells.length - 1] || player.spells.length === 0)) {
+        player.spells.push(null);
+      }
     }
   });
 
   // Отключение игрока
   socket.on('disconnect', () => {
-    console.log('Отключение:', socket.id);
-    gameState.players.delete(socket.id);
-    io.emit('player_left', {
-      id: socket.id
-    });
+    console.log(`Player disconnected: ${socket.id}`);
+    delete gameState.players[socket.id];
   });
 });
 
-// Запуск сервера
-const PORT = process.env.PORT || 3000;
+// Статические файлы
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 server.listen(PORT, () => {
-  console.log(`Сервер запущен на порту ${PORT}`);
-  console.log(`Откройте http://localhost:${PORT} в браузере`);
+  console.log(`Server running on port ${PORT}`);
 });
