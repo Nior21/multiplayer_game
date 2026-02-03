@@ -376,6 +376,9 @@ class MagicBomberman {
     setupModalListeners() {
         console.log('Setting up modal listeners...');
 
+            // ВАЖНО: убираем все глобальные обработчики долгого нажатия
+            // и делаем их локальными для каждого слота
+
         document.querySelectorAll('.modal-close, .btn-cancel').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.modal').forEach(modal => {
@@ -676,29 +679,63 @@ class MagicBomberman {
                     </div>
                 `;
 
-                slot.addEventListener('click', (e) => {
-                    if (!e.target.closest('.spell-slot')) return;
+                    // ВАЖНО: переписываем логику кликов и долгих нажатий
+                    let pressTimer;
+                    let isLongPress = false;
 
-                    console.log('Selecting spell at index', originalIndex);
+                    const handleClick = (e) => {
+                        if (isLongPress) {
+                            isLongPress = false;
+                            return;
+                        }
+
+                        console.log('Short click - selecting spell at index', originalIndex);
                     this.selectedSpellIndex = originalIndex;
                     this.updateSpellsPanel();
-                });
+                    };
 
-                // Долгое нажатие для редактирования
-                let pressTimer;
-                slot.addEventListener('mousedown', () => {
+                    const handleMouseDown = () => {
                     pressTimer = setTimeout(() => {
-                        console.log('Long press on spell at index', originalIndex);
+                            isLongPress = true;
+                            console.log('Long press - editing spell at index', originalIndex);
+                            this.editSpell(originalIndex);
+                        }, 1000);
+                    };
+
+                    const clearPressTimer = () => {
+                        clearTimeout(pressTimer);
+                    };
+
+                    // Добавляем обработчики для мыши
+                    slot.addEventListener('click', handleClick);
+                    slot.addEventListener('mousedown', handleMouseDown);
+                    slot.addEventListener('mouseup', clearPressTimer);
+                    slot.addEventListener('mouseleave', clearPressTimer);
+
+                    // Добавляем обработчики для тач-устройств
+                    slot.addEventListener('touchstart', (e) => {
+                        e.preventDefault();
+                        pressTimer = setTimeout(() => {
+                            isLongPress = true;
+                            console.log('Long touch - editing spell at index', originalIndex);
                         this.editSpell(originalIndex);
                     }, 1000);
                 });
 
-                slot.addEventListener('mouseup', () => {
+                    slot.addEventListener('touchend', (e) => {
+                        e.preventDefault();
                     clearTimeout(pressTimer);
+                        if (!isLongPress) {
+                            console.log('Short touch - selecting spell at index', originalIndex);
+                            this.selectedSpellIndex = originalIndex;
+                            this.updateSpellsPanel();
+                        }
+                        isLongPress = false;
                 });
 
-                slot.addEventListener('mouseleave', () => {
+                    slot.addEventListener('touchcancel', () => {
                     clearTimeout(pressTimer);
+                        isLongPress = false;
                 });
             } else {
                 slot.textContent = '+';
