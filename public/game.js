@@ -37,6 +37,8 @@ class MagicBomberman {
         this.lastDragX = 0;
         this.lastDragY = 0;
 
+        this.isUpdatingSpellsPanel = false;
+
         this.init();
     }
 
@@ -251,15 +253,15 @@ class MagicBomberman {
             this.castSpell();
         });
 
-         // Изменение никнейма
-         document.getElementById('nickname').addEventListener('blur', (e) => {
-             const newNickname = e.target.textContent.trim();
-             if (newNickname) {
-                 this.socket.emit('updateNickname', newNickname);
-                 // ВАЖНО: сохраняем в localStorage
-                 localStorage.setItem('magicBomberman_nickname', newNickname);
-             }
-         });
+        // Изменение никнейма
+        document.getElementById('nickname').addEventListener('blur', (e) => {
+            const newNickname = e.target.textContent.trim();
+            if (newNickname) {
+                this.socket.emit('updateNickname', newNickname);
+                // ВАЖНО: сохраняем в localStorage
+                localStorage.setItem('magicBomberman_nickname', newNickname);
+            }
+        });
 
         document.getElementById('nickname').addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
@@ -285,14 +287,14 @@ class MagicBomberman {
             const newScale = Math.max(0.5, Math.min(3, this.scale * delta));
 
             // ВАЖНО: сохраняем точку под курсором при масштабировании
-                this.offsetX = mouseX - worldX * newScale;
-                this.offsetY = mouseY - worldY * newScale;
+            this.offsetX = mouseX - worldX * newScale;
+            this.offsetY = mouseY - worldY * newScale;
 
-                this.scale = newScale;
+            this.scale = newScale;
 
-                // ВАЖНО: центрируем на игроке после масштабирования
-                this.centerOnPlayer();
-            }, {
+            // ВАЖНО: центрируем на игроке после масштабирования
+            this.centerOnPlayer();
+        }, {
             passive: false
         });
 
@@ -381,8 +383,8 @@ class MagicBomberman {
     setupModalListeners() {
         console.log('Setting up modal listeners...');
 
-            // ВАЖНО: убираем все глобальные обработчики долгого нажатия
-            // и делаем их локальными для каждого слота
+        // ВАЖНО: убираем все глобальные обработчики долгого нажатия
+        // и делаем их локальными для каждого слота
 
         document.querySelectorAll('.modal-close, .btn-cancel').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -390,6 +392,13 @@ class MagicBomberman {
                     modal.classList.remove('active');
                 });
             });
+        });
+
+        // Кнопка отмены в окне конфигурации
+        document.getElementById('cancel-config').addEventListener('click', () => {
+            document.getElementById('spell-config-modal').classList.remove('active');
+            this.currentConfigSpellIndex = null;
+            this.currentConfigSpellType = null;
         });
 
         // Выбор заклинания
@@ -543,7 +552,7 @@ class MagicBomberman {
                 document.getElementById('nickname').textContent = savedNickname;
             }
         });
-        
+
 
         this.socket.on('disconnect', () => {
             console.log('Socket disconnected');
@@ -565,7 +574,7 @@ class MagicBomberman {
                 document.getElementById('nickname').textContent = data.nickname;
                 localStorage.setItem('magicBomberman_nickname', data.nickname);
             }
-            
+
             this.centerOnPlayer();
         });
 
@@ -602,21 +611,21 @@ class MagicBomberman {
         }
 
         const player = this.gameState.players[this.playerId];
-        
+
         // ВАЖНО: вычисляем целевые координаты так, чтобы игрок был в центре
         const targetX = player.x * this.cellSize * this.scale;
         const targetY = player.y * this.cellSize * this.scale;
-        
+
         // Смещение камеры должно быть отрицательным от центра игрока
         this.offsetX = -targetX + this.canvas.width / 2;
         this.offsetY = -targetY + this.canvas.height / 2;
-        
+
         // Ограничиваем смещение границами мира
         const worldWidth = this.gridSize * this.cellSize * this.scale;
         const worldHeight = this.gridSize * this.cellSize * this.scale;
 
-                const minOffsetX = Math.min(0, this.canvas.width - worldWidth);
-                const minOffsetY = Math.min(0, this.canvas.height - worldHeight);
+        const minOffsetX = Math.min(0, this.canvas.width - worldWidth);
+        const minOffsetY = Math.min(0, this.canvas.height - worldHeight);
 
         // ВАЖНО: сначала ограничиваем сверху, потом снизу
         this.offsetX = Math.max(minOffsetX, this.offsetX);
@@ -636,62 +645,100 @@ class MagicBomberman {
         const player = this.gameState.players[this.playerId];
         if (!player) return;
 
+        // Сбрасываем выделение, если выбранного заклинания больше нет
+        if (this.selectedSpellIndex !== null &&
+            (!player.spells || !player.spells[this.selectedSpellIndex])) {
+            this.selectedSpellIndex = null;
+        }
+
         // Обновление верхней панели
         document.getElementById('hp').textContent = `${player.hp}/10`;
         document.getElementById('shield').textContent = player.shield;
         document.getElementById('score').textContent = player.score;
+
+        // НЕ ВЫЗЫВАЕМ updateSpellsPanel() здесь!
+        // Он вызывается отдельно в обработчике gameState
 
         // Центрирование камеры на игроке
         this.centerOnPlayer();
     }
 
     updateSpellsPanel() {
-        if (!this.gameState || !this.playerId) {
-            console.log('Cannot update spells panel: no player');
+        // Защита от рекурсивных вызовов
+        if (this.isUpdatingSpellsPanel) {
             return;
         }
 
-        const player = this.gameState.players[this.playerId];
-        if (!player || !player.spells) {
-            console.log('Cannot update spells panel: no player spells');
-            return;
-        }
+        this.isUpdatingSpellsPanel = true;
 
-        const spellsPanel = document.getElementById('spells-panel');
-        if (!spellsPanel) {
-            console.error('Spells panel element not found!');
-            return;
-        }
+        try {
 
-        spellsPanel.innerHTML = '';
-        console.log('Updating spells panel with', player.spells.length, 'spells');
-
-        // ВАЖНО: правильный порядок - снизу вверх
-        // Последний элемент массива (player.spells[player.spells.length - 1]) должен быть внизу
-        // Создаем слоты в прямом порядке, но позиционируем снизу вверх через CSS
-        player.spells.forEach((spell, index) => {
-            const slot = document.createElement('div');
-            slot.className = `spell-slot ${spell ? 'filled' : 'empty'}`;
-            slot.dataset.index = index;
-
-            // ВАЖНО: добавляем порядковый номер для позиционирования
-            slot.style.order = player.spells.length - index;
-            
-            if (index === this.selectedSpellIndex) {
-                slot.classList.add('selected');
+            if (!this.gameState || !this.playerId) {
+                console.log('Cannot update spells panel: no player');
+                return;
             }
 
-            if (spell) {
-                let icon, color;
-                if (spell.type === 'water') {
-                    icon = '💧';
-                    color = '#4D96FF';
-                } else {
-                    icon = '🛡️';
-                    color = '#FFD700';
+            const player = this.gameState.players[this.playerId];
+            if (!player || !player.spells) {
+                console.log('Cannot update spells panel: no player spells');
+                return;
+            }
+
+            const spellsPanel = document.getElementById('spells-panel');
+            if (!spellsPanel) {
+                console.error('Spells panel element not found!');
+                return;
+            }
+
+            // ОПТИМИЗАЦИЯ: Проверяем, нужно ли обновлять панель
+            const currentSpellsCount = spellsPanel.children.length;
+            const newSpellsCount = player.spells.length;
+
+            // Если количество слотов не изменилось и мы уже отрендерили панель,
+            // просто обновляем выделение без полной перерисовки
+            if (currentSpellsCount === newSpellsCount && currentSpellsCount > 0) {
+                // Просто обновляем классы selected
+                const slots = spellsPanel.querySelectorAll('.spell-slot');
+                slots.forEach((slot, index) => {
+                    if (index === this.selectedSpellIndex) {
+                        slot.classList.add('selected');
+                    } else {
+                        slot.classList.remove('selected');
+                    }
+                });
+                return; // Выходим без полной перерисовки
+            }
+
+            // Полная перерисовка только если количество слотов изменилось
+            console.log('Full spells panel update with', player.spells.length, 'spells');
+            spellsPanel.innerHTML = '';
+
+            // ВАЖНО: правильный порядок - снизу вверх
+            // Последний элемент массива (player.spells[player.spells.length - 1]) должен быть внизу
+            // Создаем слоты в прямом порядке, но позиционируем снизу вверх через CSS
+            player.spells.forEach((spell, index) => {
+                const slot = document.createElement('div');
+                slot.className = `spell-slot ${spell ? 'filled' : 'empty'}`;
+                slot.dataset.index = index;
+
+                // ВАЖНО: добавляем порядковый номер для позиционирования
+                slot.style.order = player.spells.length - index;
+
+                if (index === this.selectedSpellIndex) {
+                    slot.classList.add('selected');
                 }
 
-                slot.innerHTML = `
+                if (spell) {
+                    let icon, color;
+                    if (spell.type === 'water') {
+                        icon = '💧';
+                        color = '#4D96FF';
+                    } else {
+                        icon = '🛡️';
+                        color = '#FFD700';
+                    }
+
+                    slot.innerHTML = `
                     <div class="spell-icon" style="color: ${color}">${icon}</div>
                     <div class="spell-stats">
                         ⚡${spell.speed} 💪${spell.power}
@@ -708,16 +755,16 @@ class MagicBomberman {
                             return;
                         }
 
-                        console.log('Short click - selecting spell at index', originalIndex);
-                    this.selectedSpellIndex = originalIndex;
-                    this.updateSpellsPanel();
+                        console.log('Short click - selecting spell at index', index);
+                        this.selectedSpellIndex = index;
+                        this.updateSpellsPanel();
                     };
 
                     const handleMouseDown = () => {
-                    pressTimer = setTimeout(() => {
+                        pressTimer = setTimeout(() => {
                             isLongPress = true;
-                            console.log('Long press - editing spell at index', originalIndex);
-                            this.editSpell(originalIndex);
+                            console.log('Long press - editing spell at index', index);
+                            this.editSpell(index);
                         }, 1000);
                     };
 
@@ -736,65 +783,44 @@ class MagicBomberman {
                         e.preventDefault();
                         pressTimer = setTimeout(() => {
                             isLongPress = true;
-                            console.log('Long touch - editing spell at index', originalIndex);
-                        this.editSpell(originalIndex);
-                    }, 1000);
-                });
+                            console.log('Long touch - editing spell at index', index);
+                            this.editSpell(index);
+                        }, 1000);
+                    });
 
                     slot.addEventListener('touchend', (e) => {
                         e.preventDefault();
-                    clearTimeout(pressTimer);
+                        clearTimeout(pressTimer);
                         if (!isLongPress) {
-                            console.log('Short touch - selecting spell at index', originalIndex);
-                            this.selectedSpellIndex = originalIndex;
+                            console.log('Short touch - selecting spell at index', index);
+                            this.selectedSpellIndex = index;
                             this.updateSpellsPanel();
                         }
                         isLongPress = false;
-                });
+                    });
 
                     slot.addEventListener('touchcancel', () => {
-                    clearTimeout(pressTimer);
+                        clearTimeout(pressTimer);
                         isLongPress = false;
-                });
-            } else {
-                slot.textContent = '+';
-                slot.addEventListener('click', () => {
-                    console.log('Adding new spell at index', originalIndex);
-                    this.currentConfigSpellIndex = originalIndex;
-                    document.getElementById('spell-select-modal').classList.add('active');
-                });
-            }
+                    });
+                } else {
+                    slot.textContent = '+';
+                    slot.addEventListener('click', () => {
+                        console.log('Adding new spell at index', index);
+                        this.currentConfigSpellIndex = index;
+                        document.getElementById('spell-select-modal').classList.add('active');
+                    });
+                }
 
-            spellsPanel.appendChild(slot);
-        });
-    }
-
-    editSpell(index) {
-        if (!this.gameState || !this.playerId) return;
-
-        const player = this.gameState.players[this.playerId];
-        if (!player || !player.spells || !player.spells[index]) return;
-
-        const spell = player.spells[index];
-        this.currentConfigSpellIndex = index;
-        this.currentConfigSpellType = spell.type;
-
-        const slider = document.getElementById('spell-slider');
-        slider.value = spell.speed;
-
-        const icon = document.getElementById('config-spell-icon');
-        const name = document.getElementById('config-spell-name');
-
-        if (spell.type === 'water') {
-            icon.textContent = '💧';
-            name.textContent = 'Водяной выстрел';
-        } else if (spell.type === 'shield') {
-            icon.textContent = '🛡️';
-            name.textContent = 'Щит';
+                spellsPanel.appendChild(slot);
+            });
+        } finally {
+            // Снимаем флаг после завершения
+            setTimeout(() => {
+                this.isUpdatingSpellsPanel = false;
+            }, 0);
         }
 
-        this.updateSliderValues();
-        document.getElementById('spell-config-modal').classList.add('active');
     }
 
     castSpell() {
@@ -813,24 +839,39 @@ class MagicBomberman {
         if (!this.gameState || !this.playerId) return;
 
         const player = this.gameState.players[this.playerId];
-        if (!player || !player.spells || !player.spells[index]) return;
+        if (!player || this.selectedSpellIndex === null || !player.spells[this.selectedSpellIndex]) return;
 
-        const spell = player.spells[player.casting.index];
+        const spell = player.spells[this.selectedSpellIndex];
         const castTime = spell.speed * 250; // 0.25 секунды за единицу скорости
         const indicator = document.getElementById('cast-indicator');
 
+        // Создаем индикатор, если его нет
+        if (!indicator) {
+            const newIndicator = document.createElement('div');
+            newIndicator.id = 'cast-indicator';
+            newIndicator.className = 'cast-indicator';
+            document.body.appendChild(newIndicator);
+            this.castIndicator = newIndicator;
+        }
+
+        const indicatorEl = indicator || this.castIndicator;
+
         // Позиционировать индикатор вокруг игрока
         const screenPos = this.worldToScreen(player.x, player.y);
-        indicator.style.width = '80px';
-        indicator.style.height = '80px';
-        indicator.style.left = (screenPos.x - 40) + 'px';
-        indicator.style.top = (screenPos.y - 40) + 'px';
-        indicator.style.border = '3px solid #4d96ff';
-        indicator.style.borderRadius = '50%';
-        indicator.className = 'cast-indicator active';
+        indicatorEl.style.position = 'fixed';
+        indicatorEl.style.width = '80px';
+        indicatorEl.style.height = '80px';
+        indicatorEl.style.left = (screenPos.x - 40) + 'px';
+        indicatorEl.style.top = (screenPos.y - 40) + 'px';
+        indicatorEl.style.border = '3px solid #4d96ff';
+        indicatorEl.style.borderRadius = '50%';
+        indicatorEl.style.boxSizing = 'border-box';
+        indicatorEl.style.pointerEvents = 'none';
+        indicatorEl.style.zIndex = '500';
+        indicatorEl.style.display = 'block';
 
         // Анимация прогресса
-        indicator.animate([{
+        const animation = indicatorEl.animate([{
                 borderTopColor: '#4d96ff',
                 borderRightColor: 'transparent',
                 borderBottomColor: 'transparent',
@@ -860,12 +901,12 @@ class MagicBomberman {
         });
 
         // Завершение каста
-        setTimeout(() => {
-            if (player.spells[player.casting.index]?.type === 'water') {
+        animation.onfinish = () => {
+            if (spell.type === 'water') {
                 this.socket.emit('castComplete');
             }
-            indicator.className = 'cast-indicator';
-        }, castTime);
+            indicatorEl.style.display = 'none';
+        };
     }
 
     worldToScreen(worldX, worldY) {

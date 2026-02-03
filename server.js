@@ -424,20 +424,22 @@ io.on('connection', (socket) => {
     if (!player || !player.casting || player.hp <= 0) return;
 
     const spell = player.spells[player.casting.index];
-    if (spell.type === 'water') {
-      gameState.spells.push({
-        id: `${socket.id}-${Date.now()}`,
-        casterId: socket.id,
-        type: 'water',
-        x: player.x,
-        y: player.y,
-        direction: player.direction,
-        power: spell.power,
-        currentDamage: spell.power,
-        distance: 0
-      });
-    }
+    if (!spell || spell.type !== 'water') return;
 
+    // Создаем водяной выстрел
+    gameState.spells.push({
+      id: `${socket.id}-${Date.now()}`,
+      casterId: socket.id,
+      type: 'water',
+      x: player.x,
+      y: player.y,
+      direction: player.direction,
+      power: spell.power,
+      currentDamage: spell.power,
+      distance: 0
+    });
+
+    console.log(`Player ${player.nickname} cast water spell (power: ${spell.power})`);
     player.casting = null;
   });
 
