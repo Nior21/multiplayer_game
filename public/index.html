@@ -2,8 +2,10 @@
 <html>
 
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes">
-    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <style>
         * {
             margin: 0;
@@ -16,7 +18,6 @@
             overflow: hidden;
             background: #000;
             font-family: 'Arial', sans-serif;
-            user-select: none;
             -webkit-tap-highlight-color: transparent;
         }
 
@@ -26,182 +27,182 @@
             left: 0;
             width: 100vw;
             height: 100vh;
-            overflow: hidden;
         }
 
+        /* Canvas */
         #canvas {
             display: block;
-            background: #111;
-            image-rendering: pixelated;
-            image-rendering: crisp-edges;
+            width: 100%;
+            height: 100%;
         }
 
-        /* Player info bar */
-        #playerInfoBar {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            right: 10px;
-            background: rgba(0, 0, 0, 0.85);
-            border: 2px solid gold;
-            border-radius: 15px;
-            padding: 8px 12px;
+        /* Header - одна строка */
+        #header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 50px;
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.7));
+            border-bottom: 2px solid gold;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            color: white;
-            font-size: clamp(12px, 2.5vw, 16px);
+            padding: 0 15px;
             z-index: 100;
-            backdrop-filter: blur(5px);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
         }
 
+        /* Никнейм с редактированием */
         #nicknameContainer {
             display: flex;
             align-items: center;
             gap: 8px;
-            min-width: 120px;
         }
 
         #nicknameDisplay {
             color: gold;
             font-weight: bold;
-            font-size: clamp(14px, 3vw, 18px);
+            font-size: 16px;
             cursor: pointer;
-            padding: 2px 6px;
-            border-radius: 4px;
-            transition: background 0.2s;
+            padding: 5px 10px;
+            border-radius: 5px;
+            background: rgba(255, 215, 0, 0.1);
         }
 
-        #nicknameDisplay:hover {
+        #nicknameDisplay.editing {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        #nicknameEditBtn {
+            background: none;
+            border: none;
+            color: gold;
+            font-size: 14px;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 50%;
+        }
+
+        #nicknameEditBtn:hover {
             background: rgba(255, 215, 0, 0.2);
         }
 
-        #nicknameEdit {
-            display: none;
-            background: rgba(255, 255, 255, 0.95);
-            border: 1px solid gold;
-            border-radius: 4px;
-            padding: 4px 8px;
-            font-size: 14px;
-            width: 140px;
-        }
-
-        #hpContainer {
+        /* HP и щит */
+        #healthContainer {
             display: flex;
             align-items: center;
-            gap: 10px;
-            flex: 1;
-            max-width: 300px;
-            margin: 0 15px;
+            gap: 15px;
         }
 
-        #hpBar {
-            flex: 1;
+        .hp-bar {
+            width: 120px;
             height: 20px;
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 0, 0, 0.3);
             border-radius: 10px;
             overflow: hidden;
+            border: 2px solid #333;
             position: relative;
-            border: 1px solid rgba(255, 255, 255, 0.3);
         }
 
-        #hpFill {
+        .hp-fill {
             height: 100%;
-            background: linear-gradient(90deg, #ff4444, #ff8800);
-            width: 100%;
+            background: linear-gradient(to right, #ff0000, #ff4400);
             transition: width 0.3s;
         }
 
-        #shieldBar {
+        .shield-fill {
+            height: 100%;
+            background: linear-gradient(to right, #00aaff, #0088ff);
             position: absolute;
             top: 0;
             left: 0;
-            height: 100%;
-            background: linear-gradient(90deg, #44aaff, #4488ff);
-            width: 0%;
-            transition: width 0.3s;
         }
 
-        #hpText {
-            min-width: 60px;
-            font-weight: bold;
+        .hp-text {
+            position: absolute;
+            width: 100%;
             text-align: center;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+            line-height: 20px;
+            text-shadow: 1px 1px 2px black;
         }
 
+        /* Счет и кнопка сброса */
         #scoreContainer {
             display: flex;
             align-items: center;
-            gap: 10px;
-            min-width: 100px;
+            gap: 15px;
         }
 
         #scoreDisplay {
-            color: #4CAF50;
+            color: white;
+            font-size: 16px;
             font-weight: bold;
-            font-size: 1.2em;
+            min-width: 80px;
         }
 
-        #restartBtn {
-            background: linear-gradient(145deg, #ff4444, #cc0000);
+        #resetBtn {
+            background: linear-gradient(to bottom, #ff4444, #cc0000);
+            color: white;
             border: none;
             border-radius: 8px;
-            color: white;
             padding: 6px 12px;
+            font-size: 14px;
             font-weight: bold;
             cursor: pointer;
-            transition: all 0.2s;
             box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
         }
 
-        #restartBtn:active {
+        #resetBtn:active {
             transform: scale(0.95);
         }
 
-        /* Controls container */
+        /* Кнопки управления */
         #controlsContainer {
-            position: fixed;
+            position: absolute;
             bottom: 20px;
-            left: 20px;
-            right: 20px;
+            left: 0;
+            width: 100%;
             display: flex;
             justify-content: space-between;
-            align-items: flex-end;
-            z-index: 50;
-            pointer-events: none;
+            padding: 0 20px;
+            z-index: 90;
         }
 
-        #joystickContainer {
+        /* Джостик */
+        #joystick {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             grid-template-rows: repeat(3, 1fr);
-            gap: 5px;
-            width: min(180px, 25vw);
-            height: min(180px, 25vw);
-            pointer-events: auto;
+            gap: 8px;
+            width: 150px;
+            height: 150px;
         }
 
         .joystick-btn {
-            background: rgba(255, 255, 255, 0.9);
-            border: 3px solid #666;
+            background: rgba(255, 255, 255, 0.85);
+            border: 3px solid gold;
             border-radius: 15px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: clamp(20px, 4vw, 28px);
+            font-size: 20px;
             font-weight: bold;
             color: #333;
             cursor: pointer;
-            transition: all 0.1s;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
             user-select: none;
-            -webkit-user-select: none;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+            transition: all 0.1s;
         }
 
-        .joystick-btn:active {
+        .joystick-btn:active,
+        .joystick-btn.active {
             background: rgba(255, 215, 0, 0.9);
-            border-color: gold;
-            transform: translateY(2px);
+            transform: scale(0.95);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
         }
 
         #btnUp {
@@ -217,13 +218,8 @@
         #btnCenter {
             grid-column: 2;
             grid-row: 2;
-            background: rgba(255, 255, 255, 0.7);
-            font-size: clamp(16px, 3vw, 20px);
-        }
-
-        #btnRight {
-            grid-column: 3;
-            grid-row: 2;
+            background: rgba(255, 255, 255, 0.3);
+            border: none;
         }
 
         #btnDown {
@@ -231,289 +227,417 @@
             grid-row: 3;
         }
 
-        /* Spells container */
-        #spellsContainer {
-            position: fixed;
-            right: 20px;
-            bottom: 100px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            max-height: min(400px, 60vh);
-            overflow-y: auto;
-            scrollbar-width: thin;
-            scrollbar-color: gold rgba(0, 0, 0, 0.5);
-            pointer-events: auto;
-            padding-right: 4px;
+        #btnRight {
+            grid-column: 3;
+            grid-row: 2;
         }
 
-        #spellsContainer::-webkit-scrollbar {
+        /* Панель заклинаний */
+        #spellsPanel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            width: 80px;
+            max-height: 60vh;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 10px 5px;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 15px;
+            border: 2px solid #444;
+            scrollbar-width: thin;
+            scrollbar-color: gold rgba(0, 0, 0, 0.5);
+        }
+
+        #spellsPanel::-webkit-scrollbar {
             width: 6px;
         }
 
-        #spellsContainer::-webkit-scrollbar-track {
-            background: rgba(0, 0, 0, 0.3);
+        #spellsPanel::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.5);
             border-radius: 3px;
         }
 
-        #spellsContainer::-webkit-scrollbar-thumb {
+        #spellsPanel::-webkit-scrollbar-thumb {
             background: gold;
             border-radius: 3px;
         }
 
         .spell-slot {
-            width: min(70px, 12vw);
-            height: min(70px, 12vw);
-            min-width: 50px;
-            min-height: 50px;
-            background: rgba(0, 0, 0, 0.85);
+            width: 60px;
+            height: 60px;
+            background: rgba(30, 30, 30, 0.9);
             border: 2px solid #555;
-            border-radius: 12px;
+            border-radius: 10px;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             color: white;
-            font-size: clamp(10px, 2vw, 12px);
-            cursor: pointer;
-            transition: all 0.2s;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+            font-size: 11px;
             position: relative;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.2s;
         }
 
         .spell-slot.selected {
             border-color: gold;
-            border-width: 3px;
-            box-shadow: 0 0 20px gold;
+            box-shadow: 0 0 15px gold;
             transform: scale(1.05);
         }
 
         .spell-slot.empty {
-            background: rgba(255, 255, 255, 0.1);
-            border-style: dashed;
-            font-size: clamp(20px, 4vw, 28px);
+            background: rgba(60, 60, 60, 0.7);
+            font-size: 24px;
             color: #888;
         }
 
-        .spell-slot:active:not(.empty) {
-            transform: scale(0.95);
-        }
-
         .spell-icon {
-            font-size: clamp(18px, 3vw, 24px);
+            font-size: 18px;
             margin-bottom: 2px;
         }
 
         .spell-stats {
-            font-size: clamp(9px, 1.8vw, 11px);
-            background: rgba(0, 0, 0, 0.7);
-            padding: 2px 6px;
-            border-radius: 4px;
-            margin-top: 2px;
+            font-size: 9px;
+            opacity: 0.8;
         }
 
-        /* Cast button */
+        /* Кнопка каста */
+        #castContainer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
         #castButton {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: min(80px, 15vw);
-            height: min(80px, 15vw);
-            min-width: 60px;
-            min-height: 60px;
-            background: radial-gradient(circle, #ff4444, #cc0000);
+            width: 80px;
+            height: 80px;
+            background: radial-gradient(circle at 30% 30%, #ff4444, #cc0000);
             border: 4px solid #ff9900;
             border-radius: 50%;
             color: white;
-            font-size: clamp(14px, 2.5vw, 18px);
+            font-size: 16px;
             font-weight: bold;
             cursor: pointer;
-            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
             transition: all 0.1s;
-            pointer-events: auto;
-            z-index: 60;
+            user-select: none;
         }
 
         #castButton:active {
-            transform: scale(0.92);
-            background: radial-gradient(circle, #cc0000, #990000);
+            transform: scale(0.95);
+            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.5);
         }
 
-        /* Spell config modal */
-        #spellConfig {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.95);
-            border: 3px solid gold;
-            border-radius: 20px;
-            padding: 25px;
+        #castHint {
             color: white;
-            width: min(320px, 90vw);
-            display: none;
-            z-index: 1000;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+            font-size: 12px;
+            opacity: 0.7;
         }
 
-        #spellConfig h3 {
-            margin-bottom: 20px;
-            text-align: center;
-            color: gold;
-            font-size: 1.3em;
-        }
-
-        .config-btn {
-            padding: 10px 20px;
-            margin: 5px;
-            background: linear-gradient(145deg, gold, #ffaa00);
-            border: none;
-            border-radius: 10px;
-            font-weight: bold;
-            color: #333;
-            cursor: pointer;
-            transition: all 0.2s;
-            flex: 1;
-            font-size: 0.9em;
-        }
-
-        .config-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(255, 215, 0, 0.3);
-        }
-
-        .config-btn:active {
-            transform: translateY(1px);
-        }
-
-        .config-slider {
-            width: 100%;
-            margin: 20px 0;
-            -webkit-appearance: none;
-            height: 10px;
-            background: #333;
-            border-radius: 5px;
-            outline: none;
-        }
-
-        .config-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            width: 25px;
-            height: 25px;
-            background: gold;
-            border-radius: 50%;
-            cursor: pointer;
-        }
-
-        .config-value {
-            text-align: center;
-            margin: 15px 0;
-            font-size: 1.1em;
-        }
-
-        .config-buttons {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
-
-        /* Loading */
-        #loading {
+        /* Модальное окно настройки заклинания */
+        .modal-overlay {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: #000;
+            background: rgba(0, 0, 0, 0.8);
             display: flex;
-            flex-direction: column;
             align-items: center;
             justify-content: center;
-            color: gold;
-            font-size: 1.5em;
-            z-index: 10000;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
         }
 
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 5px solid rgba(255, 215, 0, 0.3);
-            border-radius: 50%;
-            border-top-color: gold;
-            animation: spin 1s linear infinite;
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-content {
+            background: linear-gradient(to bottom, #222, #111);
+            border: 3px solid gold;
+            border-radius: 20px;
+            padding: 25px;
+            color: white;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+        }
+
+        .modal-title {
+            text-align: center;
             margin-bottom: 20px;
+            color: gold;
+            font-size: 22px;
         }
 
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
+        .config-slider-container {
+            margin: 20px 0;
+        }
+
+        .config-slider {
+            width: 100%;
+            height: 30px;
+            -webkit-appearance: none;
+            background: linear-gradient(to right, #00aaff, #ffaa00);
+            border-radius: 15px;
+            outline: none;
+        }
+
+        .config-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 40px;
+            height: 40px;
+            background: gold;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        .config-values {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        .config-buttons {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            margin-top: 25px;
+        }
+
+        .modal-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .modal-btn.primary {
+            background: linear-gradient(to bottom, gold, #ffaa00);
+            color: #333;
+        }
+
+        .modal-btn.secondary {
+            background: linear-gradient(to bottom, #444, #222);
+            color: white;
+            border: 2px solid #666;
+        }
+
+        .modal-btn.danger {
+            background: linear-gradient(to bottom, #ff4444, #cc0000);
+            color: white;
+        }
+
+        .modal-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Адаптивность */
+        @media (max-width: 768px) {
+            #header {
+                height: 45px;
+                padding: 0 10px;
+            }
+
+            #nicknameDisplay {
+                font-size: 14px;
+            }
+
+            .hp-bar {
+                width: 100px;
+                height: 18px;
+            }
+
+            .hp-text {
+                font-size: 11px;
+                line-height: 18px;
+            }
+
+            #scoreDisplay {
+                font-size: 14px;
+                min-width: 70px;
+            }
+
+            #resetBtn {
+                padding: 5px 10px;
+                font-size: 13px;
+            }
+
+            #joystick {
+                width: 140px;
+                height: 140px;
+            }
+
+            .joystick-btn {
+                font-size: 18px;
+            }
+
+            #spellsPanel {
+                width: 70px;
+            }
+
+            .spell-slot {
+                width: 55px;
+                height: 55px;
+                font-size: 10px;
+            }
+
+            .spell-icon {
+                font-size: 16px;
+            }
+
+            #castButton {
+                width: 70px;
+                height: 70px;
+                font-size: 15px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            #header {
+                height: 40px;
+            }
+
+            #nicknameDisplay {
+                font-size: 13px;
+                padding: 4px 8px;
+            }
+
+            .hp-bar {
+                width: 80px;
+                height: 16px;
+            }
+
+            .hp-text {
+                font-size: 10px;
+                line-height: 16px;
+            }
+
+            #scoreDisplay {
+                font-size: 13px;
+                min-width: 60px;
+            }
+
+            #resetBtn {
+                padding: 4px 8px;
+                font-size: 12px;
+            }
+
+            #controlsContainer {
+                padding: 0 10px;
+            }
+
+            #joystick {
+                width: 130px;
+                height: 130px;
+            }
+
+            #spellsPanel {
+                width: 65px;
+            }
+
+            .spell-slot {
+                width: 50px;
+                height: 50px;
+            }
+
+            #castButton {
+                width: 65px;
+                height: 65px;
+                font-size: 14px;
             }
         }
     </style>
 </head>
 
 <body>
-    <div id="loading">
-        <div class="spinner"></div>
-        <div>Loading game...</div>
-    </div>
-
     <div id="gameContainer">
         <canvas id="canvas"></canvas>
 
-        <!-- Player info bar -->
-        <div id="playerInfoBar">
+        <!-- Шапка -->
+        <div id="header">
             <div id="nicknameContainer">
-                <div id="nicknameDisplay" onclick="startEditNickname()">Player</div>
-                <input id="nicknameEdit" type="text" maxlength="12" onblur="finishEditNickname()"
-                    onkeypress="if(event.key==='Enter') finishEditNickname()">
+                <div id="nicknameDisplay" contenteditable="false">Loading...</div>
+                <button id="nicknameEditBtn" title="Edit nickname">✏️</button>
             </div>
 
-            <div id="hpContainer">
-                <div id="hpBar">
-                    <div id="shieldBar"></div>
-                    <div id="hpFill"></div>
+            <div id="healthContainer">
+                <div class="hp-bar">
+                    <div class="shield-fill" id="shieldFill"></div>
+                    <div class="hp-fill" id="hpFill"></div>
+                    <div class="hp-text" id="hpText">100/100</div>
                 </div>
-                <div id="hpText">100 HP</div>
             </div>
 
             <div id="scoreContainer">
-                <div>Score: <span id="scoreDisplay">0</span></div>
-                <button id="restartBtn" onclick="restartGame()">↻</button>
+                <div id="scoreDisplay">Score: 0</div>
+                <button id="resetBtn" title="Reset field">🔄</button>
             </div>
         </div>
 
-        <!-- Controls -->
+        <!-- Управление -->
         <div id="controlsContainer">
-            <div id="joystickContainer">
+            <!-- Джостик -->
+            <div id="joystick">
                 <div class="joystick-btn" id="btnUp" data-key="up">↑</div>
                 <div class="joystick-btn" id="btnLeft" data-key="left">←</div>
-                <div class="joystick-btn" id="btnCenter">WASD</div>
-                <div class="joystick-btn" id="btnRight" data-key="right">→</div>
+                <div class="joystick-btn" id="btnCenter"></div>
                 <div class="joystick-btn" id="btnDown" data-key="down">↓</div>
+                <div class="joystick-btn" id="btnRight" data-key="right">→</div>
             </div>
 
-            <div id="spellsContainer">
-                <!-- Spells will be generated dynamically -->
+            <!-- Кнопка каста -->
+            <div id="castContainer">
+                <button id="castButton">CAST</button>
+                <div id="castHint">SPACE</div>
+            </div>
+
+            <!-- Панель заклинаний -->
+            <div id="spellsPanel">
+                <div class="spell-slot empty" data-index="0">+</div>
+                <div class="spell-slot empty" data-index="1">+</div>
+                <div class="spell-slot empty" data-index="2">+</div>
+                <div class="spell-slot empty" data-index="3">+</div>
+                <div class="spell-slot empty" data-index="4">+</div>
+                <div class="spell-slot empty" data-index="5">+</div>
+                <div class="spell-slot empty" data-index="6">+</div>
+                <div class="spell-slot empty" data-index="7">+</div>
             </div>
         </div>
 
-        <!-- Cast button -->
-        <button id="castButton">CAST</button>
+        <!-- Модальное окно настройки заклинания -->
+        <div id="spellConfigModal" class="modal-overlay">
+            <div class="modal-content">
+                <h2 class="modal-title" id="modalTitle">Configure Spell</h2>
+                <div id="spellTypeDisplay" style="text-align: center; margin-bottom: 20px; font-size: 18px;"></div>
 
-        <!-- Spell config modal -->
-        <div id="spellConfig">
-            <h3 id="spellConfigTitle">Configure Spell</h3>
-            <div id="spellTypeDisplay" style="text-align:center; margin-bottom:15px;"></div>
-            <div class="config-value">
-                Speed: <span id="configSpeed">5</span> / Power: <span id="configPower">5</span>
-            </div>
-            <input type="range" min="1" max="10" value="5" class="config-slider" id="spellConfigSlider">
-            <div class="config-buttons">
-                <button class="config-btn" onclick="saveSpellConfig()">Save</button>
-                <button class="config-btn" onclick="deleteSpellConfig()">Delete</button>
-                <button class="config-btn" onclick="closeSpellConfig()">Cancel</button>
+                <div class="config-slider-container">
+                    <input type="range" min="1" max="10" value="5" class="config-slider" id="spellConfigSlider">
+                    <div class="config-values">
+                        <span>Fast ⚡</span>
+                        <span id="configValues">Speed: 5 / Power: 5</span>
+                        <span>Strong 💪</span>
+                    </div>
+                </div>
+
+                <div class="config-buttons">
+                    <button class="modal-btn primary" id="saveSpellBtn">Save</button>
+                    <button class="modal-btn secondary" id="cancelSpellBtn">Cancel</button>
+                    <button class="modal-btn danger" id="deleteSpellBtn">Delete</button>
+                </div>
             </div>
         </div>
     </div>
@@ -527,132 +651,92 @@
         // Game state
         let myId = '';
         let field = [];
-        let FIELD_SIZE = 15;
+        let FIELD_SIZE = 21;
         let TILE_SIZE = 40;
         let players = {};
         let spells = [];
         let currentConfigIndex = -1;
-        let cameraX = 0;
-        let cameraY = 0;
-        let cameraScale = 1;
-        let isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        let isEditingNickname = false;
 
         // UI Elements
-        const loading = document.getElementById('loading');
         const nicknameDisplay = document.getElementById('nicknameDisplay');
-        const nicknameEdit = document.getElementById('nicknameEdit');
+        const nicknameEditBtn = document.getElementById('nicknameEditBtn');
         const hpFill = document.getElementById('hpFill');
-        const shieldBar = document.getElementById('shieldBar');
+        const shieldFill = document.getElementById('shieldFill');
         const hpText = document.getElementById('hpText');
         const scoreDisplay = document.getElementById('scoreDisplay');
-        const spellConfig = document.getElementById('spellConfig');
-        const configSlider = document.getElementById('spellConfigSlider');
-        const configSpeed = document.getElementById('configSpeed');
-        const configPower = document.getElementById('configPower');
+        const resetBtn = document.getElementById('resetBtn');
+        const castButton = document.getElementById('castButton');
+        const spellConfigModal = document.getElementById('spellConfigModal');
+        const spellConfigSlider = document.getElementById('spellConfigSlider');
+        const configValues = document.getElementById('configValues');
         const spellTypeDisplay = document.getElementById('spellTypeDisplay');
+        const modalTitle = document.getElementById('modalTitle');
+        const saveSpellBtn = document.getElementById('saveSpellBtn');
+        const cancelSpellBtn = document.getElementById('cancelSpellBtn');
+        const deleteSpellBtn = document.getElementById('deleteSpellBtn');
 
-        // Initialize canvas
-        function initCanvas() {
-            const dpr = window.devicePixelRatio || 1;
-            const rect = canvas.getBoundingClientRect();
+        // Camera
+        let cameraX = 0;
+        let cameraY = 0;
+        const CAMERA_SMOOTHNESS = 0.1;
 
-            canvas.width = rect.width * dpr;
-            canvas.height = rect.height * dpr;
+        // Initialize canvas size
+        function resizeCanvas() {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
 
-            ctx.scale(dpr, dpr);
-            canvas.style.width = rect.width + 'px';
-            canvas.style.height = rect.height + 'px';
+            canvas.width = width;
+            canvas.height = height;
 
-            // Adjust camera
-            if(players[myId]) {
-                updateCamera();
-            }
+            // Recalculate tile size based on screen size
+            TILE_SIZE = Math.min(width / FIELD_SIZE, height / FIELD_SIZE) * 0.9;
+            TILE_SIZE = Math.max(20, Math.min(50, TILE_SIZE)); // Min 20px, max 50px
         }
 
         // Update camera to follow player
         function updateCamera() {
+            if(!players[myId]) return;
+
             const player = players[myId];
-            if(!player) return;
+            const targetX = player.x * TILE_SIZE - canvas.width / 2 + TILE_SIZE / 2;
+            const targetY = player.y * TILE_SIZE - canvas.height / 2 + TILE_SIZE / 2;
 
-            const screenWidth = canvas.width / (window.devicePixelRatio || 1);
-            const screenHeight = canvas.height / (window.devicePixelRatio || 1);
+            // Clamp camera to field bounds
+            const maxX = FIELD_SIZE * TILE_SIZE - canvas.width;
+            const maxY = FIELD_SIZE * TILE_SIZE - canvas.height;
 
-            // Calculate visible area
-            const visibleTilesX = Math.ceil(screenWidth / TILE_SIZE);
-            const visibleTilesY = Math.ceil(screenHeight / TILE_SIZE);
-
-            // Center camera on player
-            cameraX = player.x - visibleTilesX / 2;
-            cameraY = player.y - visibleTilesY / 2;
-
-            // Clamp camera to field boundaries
-            cameraX = Math.max(0, Math.min(FIELD_SIZE - visibleTilesX, cameraX));
-            cameraY = Math.max(0, Math.min(FIELD_SIZE - visibleTilesY, cameraY));
+            cameraX += (Math.max(0, Math.min(targetX, maxX)) - cameraX) * CAMERA_SMOOTHNESS;
+            cameraY += (Math.max(0, Math.min(targetY, maxY)) - cameraY) * CAMERA_SMOOTHNESS;
         }
 
-        // Convert screen to world coordinates
-        function screenToWorld(x, y) {
-            const rect = canvas.getBoundingClientRect();
-            const screenX = x - rect.left;
-            const screenY = y - rect.top;
-
-            return {
-                x: Math.floor((screenX / (rect.width / canvas.width)) / TILE_SIZE + cameraX),
-                y: Math.floor((screenY / (rect.height / canvas.height)) / TILE_SIZE + cameraY)
-            };
-        }
-
-        // Drawing functions
+        // Draw functions
         function drawField() {
-            const rect = canvas.getBoundingClientRect();
-            const screenWidth = rect.width;
-            const screenHeight = rect.height;
+            if(!field || field.length === 0) return;
 
-            const visibleTilesX = Math.ceil(screenWidth / TILE_SIZE) + 1;
-            const visibleTilesY = Math.ceil(screenHeight / TILE_SIZE) + 1;
+            const startX = Math.floor(cameraX / TILE_SIZE);
+            const startY = Math.floor(cameraY / TILE_SIZE);
+            const endX = Math.ceil((cameraX + canvas.width) / TILE_SIZE);
+            const endY = Math.ceil((cameraY + canvas.height) / TILE_SIZE);
 
-            const startX = Math.floor(cameraX);
-            const startY = Math.floor(cameraY);
+            for(let x = Math.max(0, startX); x < Math.min(FIELD_SIZE, endX); x++) {
+                for(let y = Math.max(0, startY); y < Math.min(FIELD_SIZE, endY); y++) {
+                    const tile = field[x][y];
+                    const screenX = x * TILE_SIZE - cameraX;
+                    const screenY = y * TILE_SIZE - cameraY;
 
-            ctx.clearRect(0, 0, screenWidth, screenHeight);
-
-            // Draw field background
-            ctx.fillStyle = '#111';
-            ctx.fillRect(0, 0, screenWidth, screenHeight);
-
-            // Draw tiles
-            for(let dx = 0; dx < visibleTilesX; dx++) {
-                for(let dy = 0; dy < visibleTilesY; dy++) {
-                    const worldX = startX + dx;
-                    const worldY = startY + dy;
-
-                    if(worldX < 0 || worldX >= FIELD_SIZE || worldY < 0 || worldY >= FIELD_SIZE) {
-                        continue;
-                    }
-
-                    const tile = field[worldX] && field[worldX][worldY];
-                    const screenX = (worldX - cameraX) * TILE_SIZE;
-                    const screenY = (worldY - cameraY) * TILE_SIZE;
-
+                    // Draw tile
                     if(tile === 1) {
-                        // Permanent wall
-                        ctx.fillStyle = '#444';
+                        ctx.fillStyle = '#222';
                         ctx.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
                         ctx.fillStyle = '#333';
                         ctx.fillRect(screenX + 2, screenY + 2, TILE_SIZE - 4, TILE_SIZE - 4);
                     } else if(tile === 2) {
-                        // Breakable block
                         ctx.fillStyle = '#8B4513';
                         ctx.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
                         ctx.fillStyle = '#A0522D';
                         ctx.fillRect(screenX + 3, screenY + 3, TILE_SIZE - 6, TILE_SIZE - 6);
-                        // Wood texture
-                        ctx.fillStyle = '#704214';
-                        ctx.fillRect(screenX + 5, screenY + 5, TILE_SIZE - 10, 2);
-                        ctx.fillRect(screenX + 5, screenY + 15, TILE_SIZE - 10, 2);
-                        ctx.fillRect(screenX + 5, screenY + 25, TILE_SIZE - 10, 2);
                     } else {
-                        // Floor
                         ctx.fillStyle = '#2E8B57';
                         ctx.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
                         ctx.fillStyle = '#3CB371';
@@ -669,130 +753,83 @@
 
         function drawPlayers() {
             Object.values(players).forEach(player => {
-                if(!player.x || !player.y) return;
+                const screenX = player.x * TILE_SIZE - cameraX;
+                const screenY = player.y * TILE_SIZE - cameraY;
 
-                const screenX = (player.x - cameraX) * TILE_SIZE;
-                const screenY = (player.y - cameraY) * TILE_SIZE;
-
-                // Draw shadow
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-                ctx.fillRect(screenX + 6, screenY + 8, TILE_SIZE - 8, TILE_SIZE - 8);
+                // Skip if off-screen
+                if(screenX + TILE_SIZE < 0 || screenX > canvas.width ||
+                    screenY + TILE_SIZE < 0 || screenY > canvas.height) return;
 
                 // Draw player
                 ctx.fillStyle = player.color;
                 ctx.fillRect(screenX + 4, screenY + 4, TILE_SIZE - 8, TILE_SIZE - 8);
 
-                // Draw direction indicator
+                // Direction indicator
                 ctx.fillStyle = 'white';
                 const centerX = screenX + TILE_SIZE / 2;
                 const centerY = screenY + TILE_SIZE / 2;
 
                 if(player.direction === 'up') {
-                    ctx.beginPath();
-                    ctx.moveTo(centerX, screenY + 6);
-                    ctx.lineTo(centerX - 4, screenY + 14);
-                    ctx.lineTo(centerX + 4, screenY + 14);
-                    ctx.fill();
+                    ctx.fillRect(centerX - 2, screenY + 6, 4, 8);
                 } else if(player.direction === 'down') {
-                    ctx.beginPath();
-                    ctx.moveTo(centerX, screenY + TILE_SIZE - 6);
-                    ctx.lineTo(centerX - 4, screenY + TILE_SIZE - 14);
-                    ctx.lineTo(centerX + 4, screenY + TILE_SIZE - 14);
-                    ctx.fill();
+                    ctx.fillRect(centerX - 2, screenY + TILE_SIZE - 14, 4, 8);
                 } else if(player.direction === 'left') {
-                    ctx.beginPath();
-                    ctx.moveTo(screenX + 6, centerY);
-                    ctx.lineTo(screenX + 14, centerY - 4);
-                    ctx.lineTo(screenX + 14, centerY + 4);
-                    ctx.fill();
+                    ctx.fillRect(screenX + 6, centerY - 2, 8, 4);
                 } else if(player.direction === 'right') {
-                    ctx.beginPath();
-                    ctx.moveTo(screenX + TILE_SIZE - 6, centerY);
-                    ctx.lineTo(screenX + TILE_SIZE - 14, centerY - 4);
-                    ctx.lineTo(screenX + TILE_SIZE - 14, centerY + 4);
-                    ctx.fill();
+                    ctx.fillRect(screenX + TILE_SIZE - 14, centerY - 2, 8, 4);
                 }
 
-                // Draw nickname
+                // Nickname
                 ctx.fillStyle = 'white';
-                ctx.font = `bold ${Math.max(10, TILE_SIZE / 4)}px Arial`;
+                ctx.font = `${Math.max(10, TILE_SIZE / 4)}px Arial`;
                 ctx.textAlign = 'center';
-                ctx.textBaseline = 'bottom';
-                ctx.fillText(player.nickname, centerX, screenY - 5);
+                ctx.fillText(player.nickname, centerX, screenY - 8);
 
-                // Draw HP bar above player
-                const hpWidth = TILE_SIZE - 8;
-                const hpHeight = 4;
-                const hpX = screenX + 4;
-                const hpY = screenY - 10;
-
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-                ctx.fillRect(hpX, hpY, hpWidth, hpHeight);
-
-                const hpPercent = Math.max(0, player.hp) / 100;
-                ctx.fillStyle = hpPercent > 0.5 ? '#4CAF50' : hpPercent > 0.25 ? '#FF9800' : '#F44336';
-                ctx.fillRect(hpX, hpY, hpWidth * hpPercent, hpHeight);
-
-                // Draw selection for current player
+                // Selection for current player
                 if(player.id === myId) {
                     ctx.strokeStyle = 'gold';
-                    ctx.lineWidth = 2;
-                    ctx.strokeRect(screenX + 1, screenY + 1, TILE_SIZE - 2, TILE_SIZE - 2);
-
-                    // Glow effect
-                    ctx.shadowColor = player.color;
-                    ctx.shadowBlur = 10;
-                    ctx.strokeRect(screenX + 1, screenY + 1, TILE_SIZE - 2, TILE_SIZE - 2);
-                    ctx.shadowBlur = 0;
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(screenX + 2, screenY + 2, TILE_SIZE - 4, TILE_SIZE - 4);
                 }
             });
         }
 
         function drawSpells() {
             spells.forEach(spell => {
-                const startX = (spell.x - cameraX) * TILE_SIZE + TILE_SIZE / 2;
-                const startY = (spell.y - cameraY) * TILE_SIZE + TILE_SIZE / 2;
-                const endX = (spell.targetX - cameraX) * TILE_SIZE + TILE_SIZE / 2;
-                const endY = (spell.targetY - cameraY) * TILE_SIZE + TILE_SIZE / 2;
+                const startX = spell.x * TILE_SIZE - cameraX + TILE_SIZE / 2;
+                const startY = spell.y * TILE_SIZE - cameraY + TILE_SIZE / 2;
+                const endX = spell.targetX * TILE_SIZE - cameraX + TILE_SIZE / 2;
+                const endY = spell.targetY * TILE_SIZE - cameraY + TILE_SIZE / 2;
 
                 const currentX = startX + (endX - startX) * spell.progress;
                 const currentY = startY + (endY - startY) * spell.progress;
 
-                // Draw spell trail
-                ctx.strokeStyle = spell.type === 'water' ? '#40C4FF' : '#FFD740';
-                ctx.lineWidth = 3;
-                ctx.beginPath();
-                ctx.moveTo(startX, startY);
-                ctx.lineTo(currentX, currentY);
-                ctx.stroke();
+                // Skip if off-screen
+                if(currentX < -20 || currentX > canvas.width + 20 ||
+                    currentY < -20 || currentY > canvas.height + 20) return;
 
-                // Draw spell projectile
-                const radius = TILE_SIZE / 3;
+                // Draw spell
                 ctx.fillStyle = spell.type === 'water' ? '#40C4FF' : '#FFD740';
                 ctx.beginPath();
-                ctx.arc(currentX, currentY, radius, 0, Math.PI * 2);
+                ctx.arc(currentX, currentY, TILE_SIZE / 4, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Draw glow
-                ctx.shadowColor = spell.type === 'water' ? '#40C4FF' : '#FFD740';
-                ctx.shadowBlur = 15;
-                ctx.fill();
-                ctx.shadowBlur = 0;
+                ctx.strokeStyle = spell.type === 'water' ? '#2979FF' : '#FFAB00';
+                ctx.lineWidth = 2;
+                ctx.stroke();
             });
         }
 
-        // Update spell slots UI
         function updateSpellSlots() {
             const player = players[myId];
             if(!player) return;
 
-            const container = document.getElementById('spellsContainer');
-            container.innerHTML = '';
+            document.querySelectorAll('.spell-slot').forEach(slot => {
+                const index = parseInt(slot.dataset.index);
+                const spell = player.spells[index];
 
-            player.spells.forEach((spell, index) => {
-                const slot = document.createElement('div');
-                slot.className = 'spell-slot';
-                slot.dataset.index = index;
+                slot.classList.remove('empty', 'selected');
+                slot.innerHTML = '';
 
                 if(spell) {
                     if(spell.selected) slot.classList.add('selected');
@@ -807,103 +844,335 @@
 
                     slot.appendChild(icon);
                     slot.appendChild(stats);
-
-                    // Tooltip
-                    slot.title = `${spell.type === 'water' ? 'Water Blast' : 'Shield'}\nSpeed: ${spell.speed}/10\nPower: ${spell.power}/10\nClick: select\nLong press: edit`;
                 } else {
                     slot.classList.add('empty');
                     slot.textContent = '+';
-                    slot.title = 'Empty slot\nClick to add spell';
                 }
+            });
+        }
 
-                // Event listeners
-                let pressTimer;
+        function updateHealthDisplay() {
+            const player = players[myId];
+            if(!player) return;
 
-                const startPress = () => {
-                    pressTimer = setTimeout(() => {
-                        openSpellConfig(index);
-                    }, 600);
-                };
+            const hpPercent = (player.hp / 100) * 100;
+            const shieldPercent = (player.shield / 50) * 100;
 
-                const endPress = () => {
-                    clearTimeout(pressTimer);
-                    if(players[myId] && players[myId].spells[index]) {
+            hpFill.style.width = `${hpPercent}%`;
+            shieldFill.style.width = `${shieldPercent}%`;
+            hpText.textContent = player.shield > 0 ?
+                `${player.hp}+${player.shield}/100` :
+                `${player.hp}/100`;
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            updateCamera();
+            drawField();
+            drawPlayers();
+            drawSpells();
+            requestAnimationFrame(render);
+        }
+
+        // UI Event Handlers
+        function setupEventListeners() {
+            // Window resize
+            window.addEventListener('resize', resizeCanvas);
+
+            // Nickname editing
+            nicknameEditBtn.addEventListener('click', () => {
+                if(!isEditingNickname) {
+                    isEditingNickname = true;
+                    nicknameDisplay.contentEditable = true;
+                    nicknameDisplay.classList.add('editing');
+                    nicknameDisplay.focus();
+                    selectText(nicknameDisplay);
+                } else {
+                    saveNickname();
+                }
+            });
+
+            nicknameDisplay.addEventListener('keydown', (e) => {
+                if(e.key === 'Enter') {
+                    e.preventDefault();
+                    saveNickname();
+                } else if(e.key === 'Escape') {
+                    cancelNicknameEdit();
+                }
+            });
+
+            nicknameDisplay.addEventListener('blur', saveNickname);
+
+            // Joystick buttons
+            document.querySelectorAll('.joystick-btn[data-key]').forEach(btn => {
+                const key = btn.dataset.key;
+
+                // Touch events
+                btn.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    handleMove(key);
+                    btn.classList.add('active');
+                });
+
+                btn.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    btn.classList.remove('active');
+                });
+
+                // Mouse events
+                btn.addEventListener('mousedown', () => {
+                    handleMove(key);
+                    btn.classList.add('active');
+                });
+
+                btn.addEventListener('mouseup', () => {
+                    btn.classList.remove('active');
+                });
+
+                btn.addEventListener('mouseleave', () => {
+                    btn.classList.remove('active');
+                });
+            });
+
+            // Spell slots
+            document.querySelectorAll('.spell-slot').forEach(slot => {
+                const index = parseInt(slot.dataset.index);
+                let longPressTimer;
+
+                function handlePress() {
+                    const player = players[myId];
+                    if(player && player.spells[index]) {
                         socket.emit('selectSpell', index);
                     } else {
                         openSpellConfig(index);
                     }
-                };
+                }
 
+                // Touch events
                 slot.addEventListener('touchstart', (e) => {
                     e.preventDefault();
-                    startPress();
+                    longPressTimer = setTimeout(() => {
+                        openSpellConfig(index);
+                    }, 800);
                 });
 
                 slot.addEventListener('touchend', (e) => {
                     e.preventDefault();
-                    endPress();
+                    clearTimeout(longPressTimer);
+                    if(longPressTimer) handlePress();
                 });
 
-                slot.addEventListener('mousedown', startPress);
-                slot.addEventListener('mouseup', endPress);
-                slot.addEventListener('mouseleave', () => clearTimeout(pressTimer));
+                // Mouse events
+                slot.addEventListener('mousedown', () => {
+                    longPressTimer = setTimeout(() => {
+                        openSpellConfig(index);
+                    }, 800);
+                });
 
-                container.appendChild(slot);
+                slot.addEventListener('mouseup', () => {
+                    clearTimeout(longPressTimer);
+                    if(longPressTimer) handlePress();
+                });
+
+                slot.addEventListener('mouseleave', () => {
+                    clearTimeout(longPressTimer);
+                });
             });
+
+            // Cast button
+            castButton.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                socket.emit('castSpell');
+                castButton.classList.add('active');
+            });
+
+            castButton.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                castButton.classList.remove('active');
+            });
+
+            castButton.addEventListener('mousedown', () => {
+                socket.emit('castSpell');
+                castButton.classList.add('active');
+            });
+
+            castButton.addEventListener('mouseup', () => {
+                castButton.classList.remove('active');
+            });
+
+            // Reset button
+            resetBtn.addEventListener('click', () => {
+                if(confirm('Reset the game field?')) {
+                    socket.emit('resetField');
+                }
+            });
+
+            // Spell config modal
+            spellConfigSlider.addEventListener('input', updateConfigDisplay);
+            saveSpellBtn.addEventListener('click', saveSpellConfig);
+            cancelSpellBtn.addEventListener('click', closeSpellConfig);
+            deleteSpellBtn.addEventListener('click', deleteSpellConfig);
+
+            // Keyboard controls
+            document.addEventListener('keydown', handleKeyDown);
+            document.addEventListener('keyup', handleKeyUp);
         }
 
-        // Nickname editing
-        function startEditNickname() {
-            nicknameDisplay.style.display = 'none';
-            nicknameEdit.style.display = 'block';
-            nicknameEdit.value = nicknameDisplay.textContent;
-            nicknameEdit.focus();
-            nicknameEdit.select();
-        }
+        function handleKeyDown(e) {
+            if(!myId) return;
 
-        function finishEditNickname() {
-            const newName = nicknameEdit.value.trim();
-            if(newName && newName.length > 0) {
-                nicknameDisplay.textContent = newName;
-                socket.emit('rename', newName);
+            // Movement
+            const keyMap = {
+                'ArrowUp': 'up', 'w': 'up', 'W': 'up', 'ц': 'up', 'Ц': 'up',
+                'ArrowDown': 'down', 's': 'down', 'S': 'down', 'ы': 'down', 'Ы': 'down',
+                'ArrowLeft': 'left', 'a': 'left', 'A': 'left', 'ф': 'left', 'Ф': 'left',
+                'ArrowRight': 'right', 'd': 'right', 'D': 'right', 'в': 'right', 'В': 'right'
+            };
+
+            if(keyMap[e.key]) {
+                socket.emit('move', keyMap[e.key]);
+                highlightButton(keyMap[e.key]);
             }
-            nicknameEdit.style.display = 'none';
-            nicknameDisplay.style.display = 'block';
+
+            // Cast spell
+            if(e.key === ' ' || e.key === 'Spacebar') {
+                e.preventDefault();
+                socket.emit('castSpell');
+                castButton.classList.add('active');
+            }
+
+            // Spell selection (1-8)
+            if(e.key >= '1' && e.key <= '8') {
+                const index = parseInt(e.key) - 1;
+                if(players[myId] && players[myId].spells[index]) {
+                    socket.emit('selectSpell', index);
+                    highlightSpellSlot(index);
+                }
+            }
+
+            // Escape nickname edit
+            if(e.key === 'Escape' && isEditingNickname) {
+                cancelNicknameEdit();
+            }
         }
 
-        // Spell config
+        function handleKeyUp(e) {
+            // Movement keys
+            const movementKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+                'w', 'W', 's', 'S', 'a', 'A', 'd', 'D',
+                'ц', 'Ц', 'ы', 'Ы', 'ф', 'Ф', 'в', 'В'];
+            if(movementKeys.includes(e.key)) {
+                document.querySelectorAll('.joystick-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+            }
+
+            // Space bar
+            if(e.key === ' ' || e.key === 'Spacebar') {
+                castButton.classList.remove('active');
+            }
+        }
+
+        function highlightButton(direction) {
+            const btnId = {
+                'up': 'btnUp',
+                'down': 'btnDown',
+                'left': 'btnLeft',
+                'right': 'btnRight'
+            }[direction];
+
+            if(btnId) {
+                const btn = document.getElementById(btnId);
+                if(btn) {
+                    btn.classList.add('active');
+                    setTimeout(() => btn.classList.remove('active'), 100);
+                }
+            }
+        }
+
+        function highlightSpellSlot(index) {
+            const slots = document.querySelectorAll('.spell-slot');
+            if(slots[index]) {
+                const originalTransform = slots[index].style.transform;
+                slots[index].style.transform = 'scale(1.1)';
+                setTimeout(() => {
+                    slots[index].style.transform = originalTransform;
+                }, 300);
+            }
+        }
+
+        function handleMove(direction) {
+            socket.emit('move', direction);
+        }
+
+        function selectText(element) {
+            const range = document.createRange();
+            range.selectNodeContents(element);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
+
+        function saveNickname() {
+            if(!isEditingNickname) return;
+
+            const newNickname = nicknameDisplay.textContent.trim();
+            if(newNickname.length > 0 && newNickname.length <= 12) {
+                socket.emit('rename', newNickname);
+            } else {
+                // Restore original
+                const player = players[myId];
+                if(player) nicknameDisplay.textContent = player.nickname;
+            }
+
+            cancelNicknameEdit();
+        }
+
+        function cancelNicknameEdit() {
+            isEditingNickname = false;
+            nicknameDisplay.contentEditable = false;
+            nicknameDisplay.classList.remove('editing');
+            const player = players[myId];
+            if(player) nicknameDisplay.textContent = player.nickname;
+        }
+
         function openSpellConfig(index) {
             currentConfigIndex = index;
             const player = players[myId];
             const spell = player ? player.spells[index] : null;
 
             if(spell) {
+                modalTitle.textContent = 'Edit Spell';
                 spellTypeDisplay.textContent = spell.type === 'water' ? 'Water Blast 💧' : 'Shield 🛡️';
-                configSlider.value = spell.speed;
+                spellConfigSlider.value = spell.speed;
+                deleteSpellBtn.style.display = 'block';
             } else {
+                modalTitle.textContent = 'Create Spell';
                 spellTypeDisplay.textContent = 'Select Spell Type';
-                configSlider.value = 5;
+                spellConfigSlider.value = 5;
+                deleteSpellBtn.style.display = 'none';
             }
 
-            configSlider.dispatchEvent(new Event('input'));
-            spellConfig.style.display = 'block';
+            updateConfigDisplay();
+            spellConfigModal.classList.add('active');
+        }
+
+        function updateConfigDisplay() {
+            const speed = parseInt(spellConfigSlider.value);
+            const power = 11 - speed;
+            configValues.textContent = `Speed: ${speed} / Power: ${power}`;
         }
 
         function closeSpellConfig() {
-            spellConfig.style.display = 'none';
+            spellConfigModal.classList.remove('active');
             currentConfigIndex = -1;
         }
 
         function saveSpellConfig() {
             if(currentConfigIndex === -1) return;
 
-            const type = prompt('Enter spell type (water/shield):', 'water');
-            if(type !== 'water' && type !== 'shield') {
-                alert('Invalid spell type!');
-                return;
-            }
-
-            const speed = parseInt(configSlider.value);
+            const type = players[myId]?.spells[currentConfigIndex]?.type || 'water';
+            const speed = parseInt(spellConfigSlider.value);
             const power = 11 - speed;
 
             socket.emit('updateSpell', {
@@ -931,180 +1200,28 @@
             closeSpellConfig();
         }
 
-        // Game restart
-        function restartGame() {
-            if(confirm('Reset your score and HP?')) {
-                socket.emit('restart');
-            }
-        }
-
-        // Initialize controls
-        function initControls() {
-            // Joystick buttons
-            document.querySelectorAll('.joystick-btn[data-key]').forEach(btn => {
-                const key = btn.dataset.key;
-
-                const handleStart = () => {
-                    socket.emit('move', key);
-                    btn.style.background = 'rgba(255, 215, 0, 0.9)';
-                    btn.style.borderColor = 'gold';
-                };
-
-                const handleEnd = () => {
-                    btn.style.background = 'rgba(255, 255, 255, 0.9)';
-                    btn.style.borderColor = '#666';
-                };
-
-                btn.addEventListener('touchstart', (e) => {
-                    e.preventDefault();
-                    handleStart();
-                });
-
-                btn.addEventListener('touchend', (e) => {
-                    e.preventDefault();
-                    handleEnd();
-                });
-
-                btn.addEventListener('mousedown', handleStart);
-                btn.addEventListener('mouseup', handleEnd);
-                btn.addEventListener('mouseleave', handleEnd);
-            });
-
-            // Cast button
-            const castButton = document.getElementById('castButton');
-
-            castButton.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                socket.emit('castSpell');
-                castButton.style.transform = 'scale(0.92)';
-            });
-
-            castButton.addEventListener('touchend', (e) => {
-                e.preventDefault();
-                castButton.style.transform = 'scale(1)';
-            });
-
-            castButton.addEventListener('mousedown', () => {
-                socket.emit('castSpell');
-                castButton.style.transform = 'scale(0.92)';
-            });
-
-            castButton.addEventListener('mouseup', () => {
-                castButton.style.transform = 'scale(1)';
-            });
-
-            // Keyboard controls
-            document.addEventListener('keydown', (e) => {
-                if(!myId) return;
-
-                const keyMap = {
-                    'ArrowUp': 'up', 'w': 'up', 'W': 'up', 'ц': 'up', 'Ц': 'up',
-                    'ArrowDown': 'down', 's': 'down', 'S': 'down', 'ы': 'down', 'Ы': 'down',
-                    'ArrowLeft': 'left', 'a': 'left', 'A': 'left', 'ф': 'left', 'Ф': 'left',
-                    'ArrowRight': 'right', 'd': 'right', 'D': 'right', 'в': 'right', 'В': 'right'
-                };
-
-                if(keyMap[e.key]) {
-                    e.preventDefault();
-                    socket.emit('move', keyMap[e.key]);
-                    highlightButton(keyMap[e.key]);
-                }
-
-                // Space for cast
-                if(e.key === ' ' || e.key === 'Spacebar') {
-                    e.preventDefault();
-                    socket.emit('castSpell');
-                    castButton.style.transform = 'scale(0.92)';
-                    setTimeout(() => castButton.style.transform = 'scale(1)', 100);
-                }
-
-                // Numbers 1-8 for spells
-                if(e.key >= '1' && e.key <= '8') {
-                    const index = parseInt(e.key) - 1;
-                    if(players[myId] && players[myId].spells[index]) {
-                        socket.emit('selectSpell', index);
-                    }
-                }
-            });
-
-            // Spell config slider
-            configSlider.addEventListener('input', () => {
-                const value = parseInt(configSlider.value);
-                configSpeed.textContent = value;
-                configPower.textContent = 11 - value;
-            });
-        }
-
-        function highlightButton(direction) {
-            const btnMap = {
-                'up': 'btnUp',
-                'left': 'btnLeft',
-                'right': 'btnRight',
-                'down': 'btnDown'
-            };
-
-            const btn = document.getElementById(btnMap[direction]);
-            if(btn) {
-                btn.style.background = 'rgba(255, 215, 0, 0.9)';
-                btn.style.borderColor = 'gold';
-                setTimeout(() => {
-                    if(!btn.matches(':active')) {
-                        btn.style.background = 'rgba(255, 255, 255, 0.9)';
-                        btn.style.borderColor = '#666';
-                    }
-                }, 100);
-            }
-        }
-
-        // Main render loop
-        function render() {
-            if(players[myId]) {
-                updateCamera();
-            }
-
-            drawField();
-            drawPlayers();
-            drawSpells();
-            requestAnimationFrame(render);
-        }
-
         // Socket events
         socket.on('init', (data) => {
             console.log('Game initialized');
             myId = data.id;
             field = data.field || [];
-            FIELD_SIZE = data.fieldSize || 15;
+            FIELD_SIZE = data.fieldSize || 21;
             players = data.allPlayers || {};
             spells = data.allSpells || [];
 
             nicknameDisplay.textContent = data.nickname;
-            nicknameEdit.value = data.nickname;
+            scoreDisplay.textContent = `Score: ${players[myId]?.score || 0}`;
+            updateHealthDisplay();
+            updateSpellSlots();
 
-            // Update HP display
-            const player = players[myId];
-            if(player) {
-                const hpPercent = Math.max(0, player.hp) / 100;
-                const shieldPercent = Math.max(0, player.shield) / 50;
-
-                hpFill.style.width = `${hpPercent * 100}%`;
-                shieldBar.style.width = `${shieldPercent * 100}%`;
-                hpText.textContent = `${player.hp} HP`;
-                scoreDisplay.textContent = player.score;
+            // Initialize camera
+            if(players[myId]) {
+                cameraX = players[myId].x * TILE_SIZE - canvas.width / 2 + TILE_SIZE / 2;
+                cameraY = players[myId].y * TILE_SIZE - canvas.height / 2 + TILE_SIZE / 2;
             }
 
-            updateSpellSlots();
-            initCanvas();
-            initControls();
-
-            // Hide loading screen
-            setTimeout(() => {
-                loading.style.opacity = '0';
-                loading.style.transition = 'opacity 0.5s';
-                setTimeout(() => {
-                    loading.style.display = 'none';
-                }, 500);
-            }, 500);
-
+            resizeCanvas();
+            setupEventListeners();
             render();
         });
 
@@ -1124,16 +1241,8 @@
             players[player.id] = player;
             if(player.id === myId) {
                 nicknameDisplay.textContent = player.nickname;
-
-                // Update HP display
-                const hpPercent = Math.max(0, player.hp) / 100;
-                const shieldPercent = Math.max(0, player.shield) / 50;
-
-                hpFill.style.width = `${hpPercent * 100}%`;
-                shieldBar.style.width = `${shieldPercent * 100}%`;
-                hpText.textContent = `${player.hp} HP`;
-                scoreDisplay.textContent = player.score;
-
+                scoreDisplay.textContent = `Score: ${player.score}`;
+                updateHealthDisplay();
                 updateSpellSlots();
             }
         });
@@ -1152,35 +1261,24 @@
             }
         });
 
-        socket.on('blocksRespawned', (data) => {
-            console.log(`${data.count} blocks respawned`);
+        socket.on('blockRespawned', (data) => {
+            if(field[data.x] && field[data.x][data.y] === 0) {
+                field[data.x][data.y] = 2;
+            }
+        });
+
+        socket.on('fieldReset', (newField) => {
+            field = newField;
         });
 
         socket.on('playerLeft', (playerId) => {
             delete players[playerId];
         });
 
-        socket.on('serverFull', () => {
-            alert('Server is full! Try again later.');
-            window.location.reload();
-        });
-
-        // Window resize handling
-        window.addEventListener('resize', () => {
-            initCanvas();
-        });
-
-        // Prevent context menu on long press
-        document.addEventListener('contextmenu', (e) => {
-            if(e.target.closest('#spellsContainer') || e.target.closest('#joystickContainer')) {
-                e.preventDefault();
-            }
-        });
-
         // Initialize
-        window.addEventListener('load', () => {
-            initCanvas();
-        });
+        resizeCanvas();
+        setupEventListeners();
+        render();
     </script>
 </body>
 

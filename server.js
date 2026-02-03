@@ -7,20 +7,26 @@ const io = require('socket.io')(http, {
   }
 });
 
-const FIELD_SIZE = 15;
+const FIELD_SIZE = 21;
 const TILE_SIZE = 40;
-const WALLS_COUNT = 50;
-const MAX_PLAYERS = 100;
-const BLOCK_RESPAWN_RATE = 5000; // 5 секунд
+const WALLS_COUNT = 80;
+const BLOCK_RESPAWN_RATE = 10000; // 10 секунд
+const INITIAL_BLOCKS = 40;
 
 const BRIGHT_COLORS = [
   '#FF5252', '#FF4081', '#E040FB', '#7C4DFF', '#536DFE',
   '#448AFF', '#40C4FF', '#18FFFF', '#64FFDA', '#69F0AE'
 ];
 
+// Хранение данных игроков
+const players = new Map(); // id -> player
+const spells = [];
+let field = generateField();
+
 function generateField() {
   const field = Array(FIELD_SIZE).fill().map(() => Array(FIELD_SIZE).fill(0));
 
+  // Границы и несокрушимые стены
   for (let i = 0; i < FIELD_SIZE; i++) {
     for (let j = 0; j < FIELD_SIZE; j++) {
       if (i === 0 || j === 0 || i === FIELD_SIZE - 1 || j === FIELD_SIZE - 1) {
@@ -31,8 +37,9 @@ function generateField() {
     }
   }
 
+  // Разрушаемые блоки
   let placed = 0;
-  while (placed < WALLS_COUNT) {
+  while (placed < INITIAL_BLOCKS) {
     const x = Math.floor(Math.random() * FIELD_SIZE);
     const y = Math.floor(Math.random() * FIELD_SIZE);
 
@@ -49,21 +56,19 @@ function findEmptySpot(field) {
   const emptySpots = [];
   for (let x = 1; x < FIELD_SIZE - 1; x++) {
     for (let y = 1; y < FIELD_SIZE - 1; y++) {
-      if (field[x][y] === 0) emptySpots.push({
-        x,
-        y
-      });
+      if (field[x][y] === 0) {
+        emptySpots.push({
+          x,
+          y
+        });
+      }
     }
   }
-  return emptySpots.length > 0 ? emptySpots[Math.floor(Math.random() * emptySpots.length)] : {
+  return emptySpots[Math.floor(Math.random() * emptySpots.length)] || {
     x: 1,
     y: 1
   };
 }
-
-const players = {};
-const spells = [];
-const field = generateField();
 
 function getRandomColor() {
   return BRIGHT_COLORS[Math.floor(Math.random() * BRIGHT_COLORS.length)];
@@ -78,23 +83,24 @@ function generateNickname() {
 }
 
 function respawnBlocks() {
-  let respawned = 0;
-  const maxRespawn = 5;
-
-  for (let i = 0; i < maxRespawn; i++) {
-    const x = Math.floor(Math.random() * FIELD_SIZE);
-    const y = Math.floor(Math.random() * FIELD_SIZE);
-
-    if (field[x][y] === 0 && !(x === 0 || y === 0 || x === FIELD_SIZE - 1 || y === FIELD_SIZE - 1) &&
-      (x % 2 !== 0 || y % 2 !== 0)) {
-      field[x][y] = 2;
-      respawned++;
+  const emptySpots = [];
+  for (let x = 1; x < FIELD_SIZE - 1; x++) {
+    for (let y = 1; y < FIELD_SIZE - 1; y++) {
+      if (field[x][y] === 0) {
+        emptySpots.push({
+          x,
+          y
+        });
+      }
     }
   }
 
-  if (respawned > 0) {
-    io.emit('blocksRespawned', {
-      count: respawned
+  if (emptySpots.length > 0) {
+    const spot = emptySpots[Math.floor(Math.random() * emptySpots.length)];
+    field[spot.x][spot.y] = 2;
+    io.emit('blockRespawned', {
+      x: spot.x,
+      y: spot.y
     });
   }
 }
@@ -102,57 +108,55 @@ function respawnBlocks() {
 app.use(express.static('public'));
 
 io.on('connection', (socket) => {
-  if (Object.keys(players).length >= MAX_PLAYERS) {
-    socket.emit('serverFull');
-    socket.disconnect();
-    return;
+  console.log('Player connected:', socket.id);
+
+  // Восстановление данных игрока или создание нового
+  let playerData = players.get(socket.id);
+  if (!playerData) {
+    const spawn = findEmptySpot(field);
+    playerData = {
+      id: socket.id,
+      nickname: generateNickname(),
+      color: getRandomColor(),
+      x: spawn.x,
+      y: spawn.y,
+      direction: 'down',
+      score: 0,
+      hp: 100,
+      shield: 0,
+      spells: [{
+          type: 'water',
+          speed: 5,
+          power: 5,
+          selected: true
+        },
+        {
+          type: 'shield',
+          speed: 5,
+          power: 5,
+          selected: false
+        },
+        null, null, null, null, null, null
+      ]
+    };
+    players.set(socket.id, playerData);
   }
-
-  const color = getRandomColor();
-  const nickname = generateNickname();
-  const spawn = findEmptySpot(field);
-
-  players[socket.id] = {
-    id: socket.id,
-    nickname,
-    color,
-    x: spawn.x,
-    y: spawn.y,
-    direction: 'down',
-    score: 0,
-    hp: 100,
-    shield: 0,
-    spells: [{
-        type: 'water',
-        speed: 5,
-        power: 5,
-        selected: true
-      },
-      {
-        type: 'shield',
-        speed: 5,
-        power: 5,
-        selected: false
-      },
-      null, null, null, null, null, null
-    ]
-  };
 
   socket.emit('init', {
     id: socket.id,
-    nickname,
-    color,
+    nickname: playerData.nickname,
+    color: playerData.color,
     field,
     fieldSize: FIELD_SIZE,
     tileSize: TILE_SIZE,
-    allPlayers: players,
+    allPlayers: Object.fromEntries(players),
     allSpells: spells
   });
 
-  io.emit('playerJoined', players[socket.id]);
+  io.emit('playerJoined', playerData);
 
   socket.on('move', (direction) => {
-    const player = players[socket.id];
+    const player = players.get(socket.id);
     if (!player) return;
 
     player.direction = direction;
@@ -180,7 +184,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('updateSpell', (data) => {
-    const player = players[socket.id];
+    const player = players.get(socket.id);
     if (!player || data.index < 0 || data.index >= 8) return;
 
     player.spells[data.index] = data.type ? {
@@ -190,29 +194,36 @@ io.on('connection', (socket) => {
       selected: data.selected || false
     } : null;
 
-    io.emit('playerUpdated', players[socket.id]);
+    // Если слот удален, выбрать первый доступный
+    if (player.spells[data.index] && data.selected) {
+      player.spells.forEach((spell, i) => {
+        if (spell && i !== data.index) spell.selected = false;
+      });
+    }
+
+    io.emit('playerUpdated', player);
   });
 
   socket.on('selectSpell', (index) => {
-    const player = players[socket.id];
-    if (!player || index < 0 || index >= 8) return;
+    const player = players.get(socket.id);
+    if (!player || index < 0 || index >= 8 || !player.spells[index]) return;
 
     player.spells.forEach((spell, i) => {
       if (spell) spell.selected = (i === index);
     });
 
-    io.emit('playerUpdated', players[socket.id]);
+    io.emit('playerUpdated', player);
   });
 
   socket.on('castSpell', () => {
-    const player = players[socket.id];
+    const player = players.get(socket.id);
     if (!player) return;
 
     const selectedSpell = player.spells.find(s => s && s.selected);
     if (!selectedSpell) return;
 
     if (selectedSpell.type === 'shield') {
-      player.shield += selectedSpell.power * 3;
+      player.shield = selectedSpell.power * 2;
       if (player.shield > 50) player.shield = 50;
       io.emit('playerUpdated', player);
       return;
@@ -220,10 +231,9 @@ io.on('connection', (socket) => {
 
     let targetX = player.x;
     let targetY = player.y;
-    const maxDistance = 8;
-    let distance = 0;
+    const maxDistance = 10;
 
-    while (distance < maxDistance) {
+    for (let distance = 0; distance < maxDistance; distance++) {
       if (player.direction === 'up') targetY--;
       if (player.direction === 'down') targetY++;
       if (player.direction === 'left') targetX--;
@@ -236,8 +246,6 @@ io.on('connection', (socket) => {
       if (field[targetX][targetY] !== 0) {
         break;
       }
-
-      distance++;
     }
 
     const spell = {
@@ -248,8 +256,8 @@ io.on('connection', (socket) => {
       speed: selectedSpell.speed,
       x: player.x,
       y: player.y,
-      targetX: targetX,
-      targetY: targetY,
+      targetX,
+      targetY,
       direction: player.direction,
       progress: 0
     };
@@ -259,31 +267,35 @@ io.on('connection', (socket) => {
   });
 
   socket.on('rename', (newNickname) => {
-    if (players[socket.id] && newNickname && newNickname.trim().length > 0) {
-      players[socket.id].nickname = newNickname.trim().substring(0, 12);
-      io.emit('playerUpdated', players[socket.id]);
-    }
-  });
-
-  socket.on('restart', () => {
-    const player = players[socket.id];
-    if (player) {
-      player.score = 0;
-      player.hp = 100;
-      player.shield = 0;
-      const spawn = findEmptySpot(field);
-      player.x = spawn.x;
-      player.y = spawn.y;
+    const player = players.get(socket.id);
+    if (player && newNickname && newNickname.trim().length > 0) {
+      player.nickname = newNickname.trim().substring(0, 12);
       io.emit('playerUpdated', player);
     }
   });
 
+  socket.on('resetField', () => {
+    field = generateField();
+    io.emit('fieldReset', field);
+
+    // Перемещаем всех игроков в безопасные места
+    players.forEach((player, id) => {
+      const spawn = findEmptySpot(field);
+      player.x = spawn.x;
+      player.y = spawn.y;
+      io.emit('playerMoved', {
+        id,
+        x: spawn.x,
+        y: spawn.y,
+        direction: player.direction
+      });
+    });
+  });
+
   socket.on('disconnect', () => {
-    const disconnectedPlayer = players[socket.id];
-    delete players[socket.id];
-    if (disconnectedPlayer) {
-      io.emit('playerLeft', disconnectedPlayer.id);
-    }
+    console.log('Player disconnected:', socket.id);
+    // Не удаляем игрока, сохраняем для возможного возврата
+    io.emit('playerLeft', socket.id);
   });
 });
 
@@ -301,7 +313,7 @@ function gameLoop() {
         if (field[tx][ty] === 2) {
           field[tx][ty] = 0;
 
-          const player = players[spell.playerId];
+          const player = players.get(spell.playerId);
           if (player) {
             player.score += 10;
             io.emit('playerUpdated', player);
@@ -326,12 +338,15 @@ function gameLoop() {
   io.emit('spellsUpdate', spells);
 }
 
-// Таймеры
-setInterval(gameLoop, 1000 / 30);
+// Респавн блоков каждые 10 секунд
 setInterval(respawnBlocks, BLOCK_RESPAWN_RATE);
+
+// Игровой цикл
+setInterval(gameLoop, 1000 / 30);
 
 http.listen(3000, '0.0.0.0', () => {
   console.log(`Server running on http://0.0.0.0:3000`);
   console.log(`Field size: ${FIELD_SIZE}x${FIELD_SIZE}`);
-  console.log(`Max players: ${MAX_PLAYERS}`);
+  console.log(`Initial blocks: ${INITIAL_BLOCKS}`);
+  console.log(`Block respawn: ${BLOCK_RESPAWN_RATE/1000} seconds`);
 });
