@@ -12,19 +12,19 @@ class MagicBomberman {
         this.offsetX = 0;
         this.offsetY = 0;
 
-        // Загрузка спрайтов
+        // Инициализируем спрайты
         this.sprites = {
             loaded: false,
-            player: null,
-            waterSpell: null,
-            shieldSpell: null,
+            floor: null,
             wall: null,
             block: null,
             blockCracked: null,
-            floor: null
+            player: null,
+            waterSpell: null,
+            shieldSpell: null
         };
 
-        this.selectedSpellIndex = 0;
+        this.selectedSpellIndex = null;
         this.currentConfigSpellIndex = null;
         this.currentConfigSpellType = null;
 
@@ -32,12 +32,29 @@ class MagicBomberman {
         this.touchPositions = {};
         this.pinchStartDistance = 0;
         this.pinchStartScale = 1;
+        this.isDragging = false;
+        this.lastDragX = 0;
+        this.lastDragY = 0;
 
         this.init();
     }
 
-    generatePlaceholderSprites() {
-        // Генерируем простые спрайты для тестирования
+    init() {
+        // Сначала создаем fallback спрайты (они будут готовы сразу)
+        this.createFallbackSprites();
+
+        // Параллельно пытаемся загрузить из файлов
+        this.loadSprites();
+
+        this.setupCanvas();
+        this.setupEventListeners();
+        this.setupSocketListeners();
+        this.render();
+    }
+
+    createFallbackSprites() {
+        console.log('Создание спрайтов...');
+
         const createSprite = (color, text = '') => {
             const canvas = document.createElement('canvas');
             canvas.width = 32;
@@ -53,20 +70,21 @@ class MagicBomberman {
             ctx.lineWidth = 2;
             ctx.strokeRect(1, 1, 30, 30);
 
-            // Текст (если нужен)
+            // Текст
             if (text) {
                 ctx.fillStyle = '#FFF';
-                ctx.font = '10px Arial';
+                ctx.font = 'bold 14px Arial';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillText(text, 16, 16);
             }
 
             const img = new Image();
-            img.src = canvas.toDataURL();
+            img.src = canvas.toDataURL('image/png');
             return img;
         };
 
+        // Создаем спрайты
         this.sprites = {
             loaded: true,
             floor: createSprite('#162447'),
@@ -77,69 +95,62 @@ class MagicBomberman {
             waterSpell: createSprite('#4D96FF', 'W'),
             shieldSpell: createSprite('#FFD700', 'S')
         };
-    }
 
-    init() {
-        // Попробуем загрузить спрайты, если не получится - сгенерируем
-        this.loadSprites();
-
-        // Если через 1 секунду спрайты не загрузились, создаем заглушки
-        setTimeout(() => {
-            if (!this.sprites.loaded) {
-                console.log('Создаем placeholder спрайты');
-                this.generatePlaceholderSprites();
-            }
-        }, 1000);
-
-        this.setupCanvas();
-        this.setupEventListeners();
-        this.setupSocketListeners();
-        this.render();
+        console.log('Спрайты созданы');
     }
 
     loadSprites() {
-        const spriteNames = [
-            'player', 'water_spell', 'shield_spell',
-            'wall', 'block', 'block_cracked', 'floor'
+        const spriteFiles = [{
+                name: 'floor',
+                file: 'floor.png'
+            },
+            {
+                name: 'wall',
+                file: 'wall.png'
+            },
+            {
+                name: 'block',
+                file: 'block.png'
+            },
+            {
+                name: 'blockCracked',
+                file: 'block_cracked.png'
+            },
+            {
+                name: 'player',
+                file: 'player.png'
+            },
+            {
+                name: 'waterSpell',
+                file: 'water_spell.png'
+            },
+            {
+                name: 'shieldSpell',
+                file: 'shield_spell.png'
+            }
         ];
 
         let loadedCount = 0;
-        const totalSprites = spriteNames.length;
 
-        spriteNames.forEach(name => {
+        spriteFiles.forEach(sprite => {
             const img = new Image();
             img.onload = () => {
+                this.sprites[sprite.name] = img;
                 loadedCount++;
-                this.sprites[name === 'water_spell' ? 'waterSpell' :
-                    name === 'shield_spell' ? 'shieldSpell' :
-                    name === 'block_cracked' ? 'blockCracked' : name] = img;
+                console.log(`Загружен спрайт: ${sprite.file}`);
 
-                if (loadedCount === totalSprites) {
+                if (loadedCount === spriteFiles.length) {
                     this.sprites.loaded = true;
-                    console.log('Все спрайты загружены');
                 }
             };
 
             img.onerror = () => {
-                console.log(`Спрайт ${name}.png не найден, используем цветную отрисовку`);
+                console.log(`Не удалось загрузить: ${sprite.file}, используем fallback`);
                 loadedCount++;
-
-                if (loadedCount === totalSprites) {
-                    this.sprites.loaded = false; // Флаг, что спрайты не загружены
-                    console.log('Используем цветную отрисовку');
-                }
             };
 
-            // Пытаемся загрузить из папки assets
-            img.src = `assets/${name}.png`;
+            img.src = `assets/${sprite.file}`;
         });
-
-        // Таймаут на случай если файлы совсем не загрузятся
-        setTimeout(() => {
-            if (!this.sprites.loaded) {
-                console.log('Не удалось загрузить спрайты, используем цветную отрисовку');
-            }
-        }, 2000);
     }
 
     setupCanvas() {
@@ -164,24 +175,37 @@ class MagicBomberman {
         });
 
         document.addEventListener('keydown', (e) => {
-            e.preventDefault();
             if (!this.keys[e.key]) {
                 this.keys[e.key] = true;
 
                 // Управление WASD
                 if (e.key === 'w' || e.key === 'W' || e.key === 'ц' || e.key === 'Ц') {
+                    e.preventDefault();
                     this.socket.emit('move', 'up');
                 } else if (e.key === 'a' || e.key === 'A' || e.key === 'ф' || e.key === 'Ф') {
+                    e.preventDefault();
                     this.socket.emit('move', 'left');
                 } else if (e.key === 's' || e.key === 'S' || e.key === 'ы' || e.key === 'Ы') {
+                    e.preventDefault();
                     this.socket.emit('move', 'down');
                 } else if (e.key === 'd' || e.key === 'D' || e.key === 'в' || e.key === 'В') {
+                    e.preventDefault();
                     this.socket.emit('move', 'right');
                 }
 
                 // Каст заклинания пробелом
                 if (e.key === ' ' && this.selectedSpellIndex !== null) {
+                    e.preventDefault();
                     this.castSpell();
+                }
+
+                // Изменение масштаба +/- (для тестирования)
+                if (e.key === '+' || e.key === '=') {
+                    e.preventDefault();
+                    this.zoom(1.1);
+                } else if (e.key === '-' || e.key === '_') {
+                    e.preventDefault();
+                    this.zoom(0.9);
                 }
             }
         });
@@ -250,19 +274,17 @@ class MagicBomberman {
             passive: false
         });
 
-        // Тач-жесты для масштабирования
+        // Тач-жесты для масштабирования и перемещения
         this.canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
 
-            for (let i = 0; i < e.touches.length; i++) {
-                const touch = e.touches[i];
-                this.touchPositions[touch.identifier] = {
-                    x: touch.clientX,
-                    y: touch.clientY
-                };
-            }
-
-            if (e.touches.length === 2) {
+            if (e.touches.length === 1) {
+                this.isDragging = true;
+                const touch = e.touches[0];
+                this.lastDragX = touch.clientX;
+                this.lastDragY = touch.clientY;
+            } else if (e.touches.length === 2) {
+                // Масштабирование pinch-жестом
                 const touch1 = e.touches[0];
                 const touch2 = e.touches[1];
                 this.pinchStartDistance = Math.hypot(
@@ -278,7 +300,25 @@ class MagicBomberman {
         this.canvas.addEventListener('touchmove', (e) => {
             e.preventDefault();
 
-            if (e.touches.length === 2) {
+            if (e.touches.length === 1 && this.isDragging) {
+                // Перемещение карты
+                const touch = e.touches[0];
+                const deltaX = touch.clientX - this.lastDragX;
+                const deltaY = touch.clientY - this.lastDragY;
+
+                this.offsetX += deltaX;
+                this.offsetY += deltaY;
+
+                this.lastDragX = touch.clientX;
+                this.lastDragY = touch.clientY;
+
+                // Ограничить перемещение границами карты
+                const maxOffsetX = this.gridSize * this.cellSize * this.scale - this.canvas.width;
+                const maxOffsetY = this.gridSize * this.cellSize * this.scale - this.canvas.height;
+
+                this.offsetX = Math.max(0, Math.min(maxOffsetX, this.offsetX));
+                this.offsetY = Math.max(0, Math.min(maxOffsetY, this.offsetY));
+            } else if (e.touches.length === 2) {
                 // Масштабирование pinch-жестом
                 const touch1 = e.touches[0];
                 const touch2 = e.touches[1];
@@ -302,34 +342,14 @@ class MagicBomberman {
                     this.offsetY = centerY - worldY * newScale;
                     this.scale = newScale;
                 }
-            } else if (e.touches.length === 1) {
-                // Перемещение карты одним пальцем
-                const touch = e.touches[0];
-                const prevPos = this.touchPositions[touch.identifier];
-
-                if (prevPos) {
-                    this.offsetX += touch.clientX - prevPos.x;
-                    this.offsetY += touch.clientY - prevPos.y;
-
-                    this.touchPositions[touch.identifier] = {
-                        x: touch.clientX,
-                        y: touch.clientY
-                    };
-                }
             }
         }, {
             passive: false
         });
 
         this.canvas.addEventListener('touchend', (e) => {
-            for (let i = 0; i < e.changedTouches.length; i++) {
-                const touch = e.changedTouches[i];
-                delete this.touchPositions[touch.identifier];
-            }
+            this.isDragging = false;
         });
-
-        // Выбор заклинания
-        this.updateSpellsPanel();
 
         // Модальные окна
         this.setupModalListeners();
@@ -367,7 +387,7 @@ class MagicBomberman {
             });
         });
 
-        // Ползунок настройки
+        // Ползунок настройки - исправлен (скорость слева, сила справа)
         const slider = document.getElementById('spell-slider');
         slider.addEventListener('input', () => {
             this.updateSliderValues();
@@ -381,22 +401,82 @@ class MagicBomberman {
         document.getElementById('delete-spell').addEventListener('click', () => {
             this.deleteSpell();
         });
+
+        // Долгое нажатие на слот заклинания для редактирования
+        let pressTimer;
+
+        document.addEventListener('mousedown', (e) => {
+            const spellSlot = e.target.closest('.spell-slot.filled');
+            if (spellSlot) {
+                pressTimer = setTimeout(() => {
+                    const index = parseInt(spellSlot.dataset.index);
+                    this.editSpell(index);
+                }, 1000); // 1 секунда
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            clearTimeout(pressTimer);
+        });
+
+        document.addEventListener('touchstart', (e) => {
+            const spellSlot = e.target.closest('.spell-slot.filled');
+            if (spellSlot) {
+                pressTimer = setTimeout(() => {
+                    const index = parseInt(spellSlot.dataset.index);
+                    this.editSpell(index);
+                }, 1000);
+            }
+        });
+
+        document.addEventListener('touchend', () => {
+            clearTimeout(pressTimer);
+        });
     }
 
     updateSliderValues() {
         const slider = document.getElementById('spell-slider');
         const speed = parseInt(slider.value);
-        const power = 11 - speed;
+        const power = 11 - speed; // Исправлено: скорость + сила = 11
 
         document.getElementById('speed-value').textContent = speed;
         document.getElementById('power-value').textContent = power;
-        document.getElementById('cast-time').textContent = (speed * 0.1).toFixed(1);
+        document.getElementById('cast-time').textContent = (speed * 0.25).toFixed(2); // 0.25 секунды за единицу скорости
+    }
+
+    editSpell(index) {
+        if (!this.gameState || !this.playerId) return;
+
+        const player = this.gameState.players[this.playerId];
+        if (!player || !player.spells || !player.spells[index]) return;
+
+        const spell = player.spells[index];
+        this.currentConfigSpellIndex = index;
+        this.currentConfigSpellType = spell.type;
+
+        // Установить значения ползунка (обратная логика: скорость = 11 - сила)
+        const slider = document.getElementById('spell-slider');
+        slider.value = spell.speed; // Теперь правильно: слайдер = скорость
+
+        const icon = document.getElementById('config-spell-icon');
+        const name = document.getElementById('config-spell-name');
+
+        if (spell.type === 'water') {
+            icon.textContent = '💧';
+            name.textContent = 'Водяной выстрел';
+        } else if (spell.type === 'shield') {
+            icon.textContent = '🛡️';
+            name.textContent = 'Щит';
+        }
+
+        this.updateSliderValues();
+        document.getElementById('spell-config-modal').classList.add('active');
     }
 
     saveSpell() {
         if (this.currentConfigSpellIndex !== null && this.currentConfigSpellType) {
             const speed = parseInt(document.getElementById('spell-slider').value);
-            const power = 11 - speed;
+            const power = 11 - speed; // Исправлено
 
             const spell = {
                 type: this.currentConfigSpellType,
@@ -429,6 +509,9 @@ class MagicBomberman {
             this.playerId = data.playerId;
             this.gridSize = data.gridSize;
             this.cellSize = data.cellSize;
+
+            // Установить никнейм и цвет из сервера
+            document.getElementById('nickname').textContent = data.nickname;
             this.centerOnPlayer();
         });
 
@@ -437,6 +520,23 @@ class MagicBomberman {
             this.updateUI();
             this.updateSpellsPanel();
         });
+    }
+
+    zoom(factor) {
+        const newScale = Math.max(0.5, Math.min(3, this.scale * factor));
+
+        if (newScale !== this.scale) {
+            const rect = this.canvas.getBoundingClientRect();
+            const centerX = this.canvas.width / 2;
+            const centerY = this.canvas.height / 2;
+
+            const worldX = (centerX - this.offsetX) / this.scale;
+            const worldY = (centerY - this.offsetY) / this.scale;
+
+            this.offsetX = centerX - worldX * newScale;
+            this.offsetY = centerY - worldY * newScale;
+            this.scale = newScale;
+        }
     }
 
     centerOnPlayer() {
@@ -448,11 +548,15 @@ class MagicBomberman {
         const screenWidth = this.canvas.width;
         const screenHeight = this.canvas.height;
 
-        const maxOffsetX = this.gridSize * this.cellSize * this.scale - screenWidth;
-        const maxOffsetY = this.gridSize * this.cellSize * this.scale - screenHeight;
+        const worldWidth = this.gridSize * this.cellSize * this.scale;
+        const worldHeight = this.gridSize * this.cellSize * this.scale;
 
         const targetX = player.x * this.cellSize * this.scale - screenWidth / 2;
         const targetY = player.y * this.cellSize * this.scale - screenHeight / 2;
+
+        // Ограничить смещение границами мира
+        const maxOffsetX = Math.max(0, worldWidth - screenWidth);
+        const maxOffsetY = Math.max(0, worldHeight - screenHeight);
 
         this.offsetX = Math.max(0, Math.min(maxOffsetX, targetX));
         this.offsetY = Math.max(0, Math.min(maxOffsetY, targetY));
@@ -477,30 +581,45 @@ class MagicBomberman {
         if (!this.gameState || !this.playerId) return;
 
         const player = this.gameState.players[this.playerId];
-        if (!player) return;
+        if (!player || !player.spells) return;
 
         const spellsPanel = document.getElementById('spells-panel');
         spellsPanel.innerHTML = '';
 
-        player.spells.forEach((spell, index) => {
+        // Создаем слоты в обратном порядке (снизу вверх)
+        const reversedSpells = [...player.spells].reverse();
+
+        reversedSpells.forEach((spell, originalIndex) => {
+            const index = player.spells.length - 1 - originalIndex; // Правильный индекс
             const slot = document.createElement('div');
             slot.className = `spell-slot ${spell ? 'filled' : 'empty'}`;
+            slot.dataset.index = index;
 
             if (index === this.selectedSpellIndex) {
                 slot.classList.add('selected');
             }
 
             if (spell) {
+                let icon, color;
+                if (spell.type === 'water') {
+                    icon = '💧';
+                    color = '#4D96FF';
+                } else {
+                    icon = '🛡️';
+                    color = '#FFD700';
+                }
+
                 slot.innerHTML = `
-                    <div class="spell-icon ${spell.type}-icon">
-                        ${spell.type === 'water' ? '💧' : '🛡️'}
-                    </div>
+                    <div class="spell-icon" style="color: ${color}">${icon}</div>
                     <div class="spell-stats">
                         ⚡${spell.speed} 💪${spell.power}
                     </div>
                 `;
 
-                slot.addEventListener('click', () => {
+                slot.addEventListener('click', (e) => {
+                    if (!e.target.closest('.spell-slot')) return;
+
+                    // Короткий клик - выбор заклинания
                     this.selectedSpellIndex = index;
                     this.updateSpellsPanel();
                 });
@@ -531,9 +650,10 @@ class MagicBomberman {
         if (!this.gameState || !this.playerId) return;
 
         const player = this.gameState.players[this.playerId];
-        if (!player || !player.casting) return;
+        if (!player || !player.casting || !player.spells[player.casting.index]) return;
 
-        const castTime = player.casting.duration;
+        const spell = player.spells[player.casting.index];
+        const castTime = spell.speed * 250; // 0.25 секунды за единицу скорости
         const indicator = document.getElementById('cast-indicator');
 
         // Позиционировать индикатор вокруг игрока
@@ -592,6 +712,13 @@ class MagicBomberman {
         };
     }
 
+    screenToWorld(screenX, screenY) {
+        return {
+            x: (screenX - this.offsetX) / (this.cellSize * this.scale),
+            y: (screenY - this.offsetY) / (this.cellSize * this.scale)
+        };
+    }
+
     render() {
         if (!this.gameState) {
             requestAnimationFrame(() => this.render());
@@ -608,8 +735,8 @@ class MagicBomberman {
         this.ctx.translate(this.offsetX, this.offsetY);
         this.ctx.scale(this.scale, this.scale);
 
-        // Рендеринг карты
-        this.renderMap();
+        // Рендеринг пола
+        this.renderFloor();
 
         // Рендеринг блоков
         this.renderBlocks();
@@ -626,35 +753,40 @@ class MagicBomberman {
         requestAnimationFrame(() => this.render());
     }
 
-    renderMap() {
-        const gridWidth = this.gridSize * this.cellSize;
-        const gridHeight = this.gridSize * this.cellSize;
-
-        if (this.sprites.loaded && this.sprites.floor) {
-            // Рендеринг текстурой пола
-            const pattern = this.ctx.createPattern(this.sprites.floor, 'repeat');
-            this.ctx.fillStyle = pattern;
-            this.ctx.fillRect(0, 0, gridWidth, gridHeight);
+    renderFloor() {
+        // Если есть спрайт пола, рисуем его
+        if (this.sprites.floor && this.sprites.loaded) {
+            for (let x = 0; x < this.gridSize; x++) {
+                for (let y = 0; y < this.gridSize; y++) {
+                    this.ctx.drawImage(
+                        this.sprites.floor,
+                        x * this.cellSize,
+                        y * this.cellSize,
+                        this.cellSize,
+                        this.cellSize
+                    );
+                }
+            }
         } else {
-            // Цветной фон
+            // Fallback: заливаем цветом
             this.ctx.fillStyle = '#162447';
-            this.ctx.fillRect(0, 0, gridWidth, gridHeight);
+            this.ctx.fillRect(0, 0, this.gridSize * this.cellSize, this.gridSize * this.cellSize);
 
-            // Сетка (только при цветной отрисовке)
+            // Сетка
             this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
             this.ctx.lineWidth = 1;
 
             for (let x = 0; x <= this.gridSize; x++) {
                 this.ctx.beginPath();
                 this.ctx.moveTo(x * this.cellSize, 0);
-                this.ctx.lineTo(x * this.cellSize, gridHeight);
+                this.ctx.lineTo(x * this.cellSize, this.gridSize * this.cellSize);
                 this.ctx.stroke();
             }
 
             for (let y = 0; y <= this.gridSize; y++) {
                 this.ctx.beginPath();
                 this.ctx.moveTo(0, y * this.cellSize);
-                this.ctx.lineTo(gridWidth, y * this.cellSize);
+                this.ctx.lineTo(this.gridSize * this.cellSize, y * this.cellSize);
                 this.ctx.stroke();
             }
         }
@@ -669,10 +801,9 @@ class MagicBomberman {
 
             if (block.indestructible) {
                 // Несокрушимые стены
-                if (this.sprites.loaded && this.sprites.wall) {
+                if (this.sprites.wall && this.sprites.loaded) {
                     this.ctx.drawImage(this.sprites.wall, x, y, this.cellSize, this.cellSize);
                 } else {
-                    // Цветная отрисовка
                     this.ctx.fillStyle = '#393e46';
                     this.ctx.fillRect(x, y, this.cellSize, this.cellSize);
 
@@ -682,17 +813,13 @@ class MagicBomberman {
                 }
             } else if (block.hp > 0) {
                 // Разрушаемые блоки
-                if (this.sprites.loaded && this.sprites.block) {
-                    if (block.hp < 3 && this.sprites.blockCracked) {
-                        // Треснутый блок при низком HP
-                        this.ctx.drawImage(this.sprites.blockCracked, x, y, this.cellSize, this.cellSize);
-                    } else {
-                        // Целый блок
-                        this.ctx.drawImage(this.sprites.block, x, y, this.cellSize, this.cellSize);
-                    }
+                const opacity = 0.3 + (block.hp / 5) * 0.7;
+
+                if (this.sprites.block && this.sprites.loaded) {
+                    this.ctx.globalAlpha = opacity;
+                    this.ctx.drawImage(this.sprites.block, x, y, this.cellSize, this.cellSize);
+                    this.ctx.globalAlpha = 1.0;
                 } else {
-                    // Цветная отрисовка
-                    const opacity = 0.3 + (block.hp / 5) * 0.7;
                     this.ctx.fillStyle = `rgba(139, 69, 19, ${opacity})`;
                     this.ctx.fillRect(x + 2, y + 2, this.cellSize - 4, this.cellSize - 4);
 
@@ -708,6 +835,13 @@ class MagicBomberman {
                         }
                     }
                 }
+
+                // Отображение прочности блока (для отладки)
+                this.ctx.fillStyle = 'white';
+                this.ctx.font = 'bold 12px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText(block.hp, x + this.cellSize / 2, y + this.cellSize / 2);
             }
         });
     }
@@ -723,12 +857,10 @@ class MagicBomberman {
             this.ctx.translate(x, y);
 
             if (spell.type === 'water') {
-                if (this.sprites.loaded && this.sprites.waterSpell) {
-                    // Спрайт водяного заклинания
-                    this.ctx.rotate(spell.direction);
-                    this.ctx.drawImage(this.sprites.waterSpell, -this.cellSize / 2, -this.cellSize / 2, this.cellSize, this.cellSize);
+                if (this.sprites.waterSpell && this.sprites.loaded) {
+                    this.ctx.drawImage(this.sprites.waterSpell, -15, -15, 30, 30);
                 } else {
-                    // Цветная отрисовка
+                    // Водяной выстрел
                     const gradient = this.ctx.createRadialGradient(0, 0, 5, 0, 0, 15);
                     gradient.addColorStop(0, 'rgba(77, 150, 255, 0.8)');
                     gradient.addColorStop(1, 'rgba(77, 150, 255, 0.2)');
@@ -748,6 +880,7 @@ class MagicBomberman {
             this.ctx.restore();
         });
     }
+
     renderPlayers() {
         if (!this.gameState.players) return;
 
@@ -761,18 +894,33 @@ class MagicBomberman {
             this.ctx.translate(x, y);
 
             // Тело игрока
-            this.ctx.fillStyle = player.id === this.playerId ? '#4ecca3' : '#ff6b6b';
-            this.ctx.beginPath();
-            this.ctx.arc(0, 0, 15, 0, Math.PI * 2);
-            this.ctx.fill();
+            if (this.sprites.player && this.sprites.loaded) {
+                this.ctx.drawImage(this.sprites.player, -15, -15, 30, 30);
+            } else {
+                this.ctx.fillStyle = player.color || (player.id === this.playerId ? '#4ecca3' : '#ff6b6b');
+                this.ctx.beginPath();
+                this.ctx.arc(0, 0, 15, 0, Math.PI * 2);
+                this.ctx.fill();
+
+                // Контур
+                this.ctx.strokeStyle = '#000';
+                this.ctx.lineWidth = 2;
+                this.ctx.stroke();
+            }
 
             // Щит
             if (player.shield > 0) {
-                this.ctx.strokeStyle = 'rgba(255, 215, 0, 0.6)';
-                this.ctx.lineWidth = 3;
-                this.ctx.beginPath();
-                this.ctx.arc(0, 0, 20, 0, Math.PI * 2);
-                this.ctx.stroke();
+                if (this.sprites.shieldSpell && this.sprites.loaded) {
+                    this.ctx.globalAlpha = 0.6;
+                    this.ctx.drawImage(this.sprites.shieldSpell, -20, -20, 40, 40);
+                    this.ctx.globalAlpha = 1.0;
+                } else {
+                    this.ctx.strokeStyle = 'rgba(255, 215, 0, 0.6)';
+                    this.ctx.lineWidth = 3;
+                    this.ctx.beginPath();
+                    this.ctx.arc(0, 0, 20, 0, Math.PI * 2);
+                    this.ctx.stroke();
+                }
             }
 
             // Направление взгляда
@@ -780,13 +928,15 @@ class MagicBomberman {
             this.ctx.fillStyle = 'white';
             this.ctx.fillRect(10, -2, 10, 4);
 
-            // Никнейм
             this.ctx.restore();
+
+            // Никнейм и здоровье
             this.ctx.save();
             this.ctx.translate(x, y - 30);
             this.ctx.fillStyle = 'white';
             this.ctx.font = '12px Arial';
             this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
             this.ctx.fillText(player.nickname, 0, 0);
 
             // Здоровье
@@ -795,7 +945,7 @@ class MagicBomberman {
             this.ctx.fillText(`❤${player.hp}`, 0, 15);
 
             this.ctx.restore();
-        }
+        };
     }
 }
 
