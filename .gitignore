@@ -3,3 +3,4 @@ compare.html
 node_modules
 package-lock.json
 /.history
+/.temp-tree-view

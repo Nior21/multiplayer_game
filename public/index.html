@@ -32,9 +32,7 @@
     <!-- Игровое поле -->
     <canvas id="gameCanvas"></canvas>
 
-    <!-- UI элементы поверх canvas -->
-
-    <!-- Джостик -->
+    <!-- UI элементы -->
     <div id="joystick" class="joystick">
         <div class="joystick-row">
             <button class="joy-btn up-btn" data-direction="up">W</button>
@@ -48,7 +46,7 @@
 
     <!-- Панель заклинаний -->
     <div id="spells-panel" class="spells-panel">
-        <!-- Слоты заклинаний будут добавляться динамически -->
+        <!-- Слоты будут добавлены динамически -->
     </div>
 
     <!-- Кнопка CAST -->
@@ -57,7 +55,7 @@
         <div class="cast-hint">SPACE</div>
     </div>
 
-    <!-- Модальное окно выбора заклинаний -->
+    <!-- Модальные окна -->
     <div id="spell-select-modal" class="modal">
         <div class="modal-content">
             <h3>Выберите заклинание</h3>
@@ -65,19 +63,16 @@
                 <div class="spell-option" data-spell="water">
                     <div class="spell-icon water-icon">💧</div>
                     <div class="spell-name">Водяной выстрел</div>
-                    <div class="spell-desc">Прямой урон, уменьшается с расстоянием</div>
                 </div>
                 <div class="spell-option" data-spell="shield">
                     <div class="spell-icon shield-icon">🛡️</div>
                     <div class="spell-name">Щит</div>
-                    <div class="spell-desc">Временная защита</div>
                 </div>
             </div>
             <button class="modal-close">Отмена</button>
         </div>
     </div>
 
-    <!-- Модальное окно настройки заклинания -->
     <div id="spell-config-modal" class="modal">
         <div class="modal-content">
             <h3>Настройка заклинания</h3>
@@ -89,12 +84,8 @@
 
                 <div class="slider-container">
                     <div class="slider-labels">
-                        <span class="label-left">
-                            <i class="fas fa-bolt"></i> Быстро
-                        </span>
-                        <span class="label-right">
-                            <i class="fas fa-fist-raised"></i> Сильно
-                        </span>
+                        <span class="label-left">⚡ Быстро</span>
+                        <span class="label-right">💪 Сильно</span>
                     </div>
                     <input type="range" id="spell-slider" min="1" max="10" value="5" class="slider">
                     <div class="slider-values">
@@ -102,7 +93,7 @@
                         <div>Сила: <span id="power-value">6</span></div>
                     </div>
                     <div class="spell-info">
-                        Время каста: <span id="cast-time">0.5</span>с
+                        Время каста: <span id="cast-time">1.25</span>с
                     </div>
                 </div>
 
@@ -115,11 +106,21 @@
         </div>
     </div>
 
-    <!-- Индикатор каста -->
-    <div id="cast-indicator" class="cast-indicator"></div>
-
     <script src="/socket.io/socket.io.js"></script>
     <script src="game.js"></script>
+
+    <script>
+        // Простой скрипт для проверки загрузки
+        console.log('HTML loaded successfully');
+
+        // Проверяем наличие основных элементов
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('DOM loaded');
+            console.log('Canvas:', document.getElementById('gameCanvas'));
+            console.log('Spells panel:', document.getElementById('spells-panel'));
+            console.log('Socket.io:', typeof io);
+        });
+    </script>
 </body>
 
 </html>

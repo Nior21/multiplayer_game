@@ -1,5 +1,6 @@
 class MagicBomberman {
     constructor() {
+        console.log('Initializing MagicBomberman...');
         this.socket = io();
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
@@ -40,7 +41,9 @@ class MagicBomberman {
     }
 
     init() {
-        // Сначала создаем fallback спрайты (они будут готовы сразу)
+        console.log('Initializing game...');
+
+        // Сначала создаем fallback спрайты
         this.createFallbackSprites();
 
         // Параллельно пытаемся загрузить из файлов
@@ -49,11 +52,13 @@ class MagicBomberman {
         this.setupCanvas();
         this.setupEventListeners();
         this.setupSocketListeners();
+
+        console.log('Starting render loop...');
         this.render();
     }
 
     createFallbackSprites() {
-        console.log('Создание спрайтов...');
+        console.log('Creating fallback sprites...');
 
         const createSprite = (color, text = '') => {
             const canvas = document.createElement('canvas');
@@ -96,10 +101,11 @@ class MagicBomberman {
             shieldSpell: createSprite('#FFD700', 'S')
         };
 
-        console.log('Спрайты созданы');
+        console.log('Fallback sprites created');
     }
 
     loadSprites() {
+        console.log('Loading sprites from assets...');
         const spriteFiles = [{
                 name: 'floor',
                 file: 'floor.png'
@@ -135,17 +141,19 @@ class MagicBomberman {
         spriteFiles.forEach(sprite => {
             const img = new Image();
             img.onload = () => {
+                console.log(`Sprite loaded: ${sprite.file}`);
                 this.sprites[sprite.name] = img;
                 loadedCount++;
                 console.log(`Загружен спрайт: ${sprite.file}`);
 
                 if (loadedCount === spriteFiles.length) {
                     this.sprites.loaded = true;
+                    console.log('All sprites loaded from assets');
                 }
             };
 
             img.onerror = () => {
-                console.log(`Не удалось загрузить: ${sprite.file}, используем fallback`);
+                console.log(`Failed to load: ${sprite.file}, using fallback`);
                 loadedCount++;
             };
 
@@ -154,17 +162,20 @@ class MagicBomberman {
     }
 
     setupCanvas() {
+        console.log('Setting up canvas...');
         this.resizeCanvas();
         window.addEventListener('resize', () => this.resizeCanvas());
     }
 
     resizeCanvas() {
+        console.log(`Resizing canvas to ${window.innerWidth}x${window.innerHeight}`);
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight;
         this.centerOnPlayer();
     }
 
     setupEventListeners() {
+        console.log('Setting up event listeners...');
         // Блокировка стандартного масштабирования браузера
         document.addEventListener('wheel', (e) => {
             if (e.ctrlKey) {
@@ -231,6 +242,7 @@ class MagicBomberman {
 
         // Кнопка CAST
         document.getElementById('cast-btn').addEventListener('click', () => {
+            console.log('CAST button clicked');
             this.castSpell();
         });
 
@@ -353,10 +365,12 @@ class MagicBomberman {
 
         // Модальные окна
         this.setupModalListeners();
+        console.log('Event listeners setup complete');
     }
 
     setupModalListeners() {
-        // Закрытие модальных окон
+        console.log('Setting up modal listeners...');
+
         document.querySelectorAll('.modal-close, .btn-cancel').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.modal').forEach(modal => {
@@ -505,7 +519,22 @@ class MagicBomberman {
     }
 
     setupSocketListeners() {
+        console.log('Setting up socket listeners...');
+
+        this.socket.on('connect', () => {
+            console.log('Socket connected');
+        });
+
+        this.socket.on('disconnect', () => {
+            console.log('Socket disconnected');
+        });
+
+        this.socket.on('connect_error', (error) => {
+            console.error('Socket connection error:', error);
+        });
+
         this.socket.on('init', (data) => {
+            console.log('Received init data:', data);
             this.playerId = data.playerId;
             this.gridSize = data.gridSize;
             this.cellSize = data.cellSize;
@@ -516,6 +545,9 @@ class MagicBomberman {
         });
 
         this.socket.on('gameState', (state) => {
+            if (!this.gameState) {
+                console.log('Received initial game state');
+            }
             this.gameState = state;
             this.updateUI();
             this.updateSpellsPanel();
@@ -578,24 +610,36 @@ class MagicBomberman {
     }
 
     updateSpellsPanel() {
-        if (!this.gameState || !this.playerId) return;
+        if (!this.gameState || !this.playerId) {
+            console.log('Cannot update spells panel: no player');
+            return;
+        }
 
         const player = this.gameState.players[this.playerId];
-        if (!player || !player.spells) return;
+        if (!player || !player.spells) {
+            console.log('Cannot update spells panel: no player spells');
+            return;
+        }
 
         const spellsPanel = document.getElementById('spells-panel');
-        spellsPanel.innerHTML = '';
+        if (!spellsPanel) {
+            console.error('Spells panel element not found!');
+            return;
+        }
 
-        // Создаем слоты в обратном порядке (снизу вверх)
+        spellsPanel.innerHTML = '';
+        console.log('Updating spells panel with', player.spells.length, 'spells');
+
+        // ВАЖНО: порядок снизу вверх - реверсируем массив
         const reversedSpells = [...player.spells].reverse();
 
-        reversedSpells.forEach((spell, originalIndex) => {
-            const index = player.spells.length - 1 - originalIndex; // Правильный индекс
+        reversedSpells.forEach((spell, reversedIndex) => {
+            const originalIndex = player.spells.length - 1 - reversedIndex;
             const slot = document.createElement('div');
             slot.className = `spell-slot ${spell ? 'filled' : 'empty'}`;
-            slot.dataset.index = index;
+            slot.dataset.index = originalIndex;
 
-            if (index === this.selectedSpellIndex) {
+            if (originalIndex === this.selectedSpellIndex) {
                 slot.classList.add('selected');
             }
 
@@ -619,14 +663,32 @@ class MagicBomberman {
                 slot.addEventListener('click', (e) => {
                     if (!e.target.closest('.spell-slot')) return;
 
-                    // Короткий клик - выбор заклинания
-                    this.selectedSpellIndex = index;
+                    console.log('Selecting spell at index', originalIndex);
+                    this.selectedSpellIndex = originalIndex;
                     this.updateSpellsPanel();
+                });
+
+                // Долгое нажатие для редактирования
+                let pressTimer;
+                slot.addEventListener('mousedown', () => {
+                    pressTimer = setTimeout(() => {
+                        console.log('Long press on spell at index', originalIndex);
+                        this.editSpell(originalIndex);
+                    }, 1000);
+                });
+
+                slot.addEventListener('mouseup', () => {
+                    clearTimeout(pressTimer);
+                });
+
+                slot.addEventListener('mouseleave', () => {
+                    clearTimeout(pressTimer);
                 });
             } else {
                 slot.textContent = '+';
                 slot.addEventListener('click', () => {
-                    this.currentConfigSpellIndex = index;
+                    console.log('Adding new spell at index', originalIndex);
+                    this.currentConfigSpellIndex = originalIndex;
                     document.getElementById('spell-select-modal').classList.add('active');
                 });
             }
@@ -635,14 +697,43 @@ class MagicBomberman {
         });
     }
 
+    editSpell(index) {
+        if (!this.gameState || !this.playerId) return;
+
+        const player = this.gameState.players[this.playerId];
+        if (!player || !player.spells || !player.spells[index]) return;
+
+        const spell = player.spells[index];
+        this.currentConfigSpellIndex = index;
+        this.currentConfigSpellType = spell.type;
+
+        const slider = document.getElementById('spell-slider');
+        slider.value = spell.speed;
+
+        const icon = document.getElementById('config-spell-icon');
+        const name = document.getElementById('config-spell-name');
+
+        if (spell.type === 'water') {
+            icon.textContent = '💧';
+            name.textContent = 'Водяной выстрел';
+        } else if (spell.type === 'shield') {
+            icon.textContent = '🛡️';
+            name.textContent = 'Щит';
+        }
+
+        this.updateSliderValues();
+        document.getElementById('spell-config-modal').classList.add('active');
+    }
+
     castSpell() {
         if (this.selectedSpellIndex !== null) {
+            console.log('Casting spell at index', this.selectedSpellIndex);
             this.socket.emit('castSpell', {
                 spellIndex: this.selectedSpellIndex
             });
-
-            // Запустить анимацию каста
             this.showCastAnimation();
+        } else {
+            console.log('No spell selected');
         }
     }
 
@@ -650,7 +741,7 @@ class MagicBomberman {
         if (!this.gameState || !this.playerId) return;
 
         const player = this.gameState.players[this.playerId];
-        if (!player || !player.casting || !player.spells[player.casting.index]) return;
+        if (!player || !player.spells || !player.spells[index]) return;
 
         const spell = player.spells[player.casting.index];
         const castTime = spell.speed * 250; // 0.25 секунды за единицу скорости
@@ -720,37 +811,51 @@ class MagicBomberman {
     }
 
     render() {
-        if (!this.gameState) {
+        try {
+            if (!this.gameState) {
+                // Рисуем сообщение о загрузке
+                this.ctx.fillStyle = '#162447';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+                this.ctx.fillStyle = 'white';
+                this.ctx.font = '20px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText('Подключение к серверу...', this.canvas.width / 2, this.canvas.height / 2);
+
+                requestAnimationFrame(() => this.render());
+                return;
+            }
+
+            // Очистка canvas
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+            // Сохраняем трансформацию
+            this.ctx.save();
+
+            // Применяем трансформацию камеры
+            this.ctx.translate(this.offsetX, this.offsetY);
+            this.ctx.scale(this.scale, this.scale);
+
+            // Рендеринг пола
+            this.renderFloor();
+
+            // Рендеринг блоков
+            this.renderBlocks();
+
+            // Рендеринг заклинаний
+            this.renderSpells();
+
+            // Рендеринг игроков
+            this.renderPlayers();
+
+            // Восстанавливаем трансформацию
+            this.ctx.restore();
+
             requestAnimationFrame(() => this.render());
-            return;
+        } catch (error) {
+            console.error('Render error:', error);
+            requestAnimationFrame(() => this.render());
         }
-
-        // Очистка canvas
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-        // Сохраняем трансформацию
-        this.ctx.save();
-
-        // Применяем трансформацию камеры
-        this.ctx.translate(this.offsetX, this.offsetY);
-        this.ctx.scale(this.scale, this.scale);
-
-        // Рендеринг пола
-        this.renderFloor();
-
-        // Рендеринг блоков
-        this.renderBlocks();
-
-        // Рендеринг заклинаний
-        this.renderSpells();
-
-        // Рендеринг игроков
-        this.renderPlayers();
-
-        // Восстанавливаем трансформацию
-        this.ctx.restore();
-
-        requestAnimationFrame(() => this.render());
     }
 
     renderFloor() {
@@ -793,7 +898,7 @@ class MagicBomberman {
     }
 
     renderBlocks() {
-        if (!this.gameState.blocks) return;
+        if (!this.gameState || !this.gameState.blocks) return;
 
         this.gameState.blocks.forEach(block => {
             const x = block.x * this.cellSize;
@@ -847,7 +952,7 @@ class MagicBomberman {
     }
 
     renderSpells() {
-        if (!this.gameState.spells) return;
+        if (!this.gameState || !this.gameState.spells) return;
 
         this.gameState.spells.forEach(spell => {
             const x = spell.x * this.cellSize;
@@ -882,7 +987,7 @@ class MagicBomberman {
     }
 
     renderPlayers() {
-        if (!this.gameState.players) return;
+        if (!this.gameState || !this.gameState.players) return;
 
         for (const player of Object.values(this.gameState.players)) {
             if (player.hp <= 0) continue; // Теперь это работает в for...of
@@ -951,10 +1056,12 @@ class MagicBomberman {
 
 // Запуск игры при загрузке страницы
 window.addEventListener('load', () => {
-    new MagicBomberman();
-});
-
-// Блокировка контекстного меню
-document.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
+    console.log('Window loaded, starting game...');
+    try {
+        new MagicBomberman();
+        console.log('Game started successfully');
+    } catch (error) {
+        console.error('Failed to start game:', error);
+        alert('Ошибка запуска игры. Проверьте консоль для деталей.');
+    }
 });
