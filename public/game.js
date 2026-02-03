@@ -251,10 +251,15 @@ class MagicBomberman {
             this.castSpell();
         });
 
-        // Изменение никнейма
-        document.getElementById('nickname').addEventListener('blur', (e) => {
-            this.socket.emit('updateNickname', e.target.textContent);
-        });
+         // Изменение никнейма
+         document.getElementById('nickname').addEventListener('blur', (e) => {
+             const newNickname = e.target.textContent.trim();
+             if (newNickname) {
+                 this.socket.emit('updateNickname', newNickname);
+                 // ВАЖНО: сохраняем в localStorage
+                 localStorage.setItem('magicBomberman_nickname', newNickname);
+             }
+         });
 
         document.getElementById('nickname').addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
@@ -531,7 +536,14 @@ class MagicBomberman {
 
         this.socket.on('connect', () => {
             console.log('Socket connected');
+
+            // ВАЖНО: пытаемся восстановить ник из localStorage
+            const savedNickname = localStorage.getItem('magicBomberman_nickname');
+            if (savedNickname) {
+                document.getElementById('nickname').textContent = savedNickname;
+            }
         });
+        
 
         this.socket.on('disconnect', () => {
             console.log('Socket disconnected');
@@ -547,8 +559,13 @@ class MagicBomberman {
             this.gridSize = data.gridSize;
             this.cellSize = data.cellSize;
 
-            // Установить никнейм и цвет из сервера
-            document.getElementById('nickname').textContent = data.nickname;
+            // ВАЖНО: используем ник из сервера только если нет сохраненного
+            const savedNickname = localStorage.getItem('magicBomberman_nickname');
+            if (!savedNickname) {
+                document.getElementById('nickname').textContent = data.nickname;
+                localStorage.setItem('magicBomberman_nickname', data.nickname);
+            }
+            
             this.centerOnPlayer();
         });
 

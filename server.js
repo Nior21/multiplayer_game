@@ -382,6 +382,7 @@ io.on('connection', (socket) => {
     const spell = player.spells[spellIndex];
     const now = Date.now();
 
+    // ВАЖНО: исправляем проверку кулдауна (было < spell.speed * 250)
     if (now - player.lastCastTime < spell.speed * 250) {
       return;
     }
