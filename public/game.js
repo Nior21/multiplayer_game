@@ -267,22 +267,27 @@ class MagicBomberman {
         this.canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
 
+            // Получаем позицию мыши в мировых координатах ДО изменения масштаба
             const rect = this.canvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
 
+            // Преобразуем в мировые координаты
             const worldX = (mouseX - this.offsetX) / this.scale;
             const worldY = (mouseY - this.offsetY) / this.scale;
 
             const delta = e.deltaY > 0 ? 0.9 : 1.1;
             const newScale = Math.max(0.5, Math.min(3, this.scale * delta));
 
-            if (newScale !== this.scale) {
+            // ВАЖНО: сохраняем точку под курсором при масштабировании
                 this.offsetX = mouseX - worldX * newScale;
                 this.offsetY = mouseY - worldY * newScale;
+
                 this.scale = newScale;
-            }
-        }, {
+
+                // ВАЖНО: центрируем на игроке после масштабирования
+                this.centerOnPlayer();
+            }, {
             passive: false
         });
 
@@ -577,21 +582,32 @@ class MagicBomberman {
         }
 
         const player = this.gameState.players[this.playerId];
-        const screenWidth = this.canvas.width;
-        const screenHeight = this.canvas.height;
-
+        
+        // ВАЖНО: вычисляем целевые координаты так, чтобы игрок был в центре
+        const targetX = player.x * this.cellSize * this.scale;
+        const targetY = player.y * this.cellSize * this.scale;
+        
+        // Смещение камеры должно быть отрицательным от центра игрока
+        this.offsetX = -targetX + this.canvas.width / 2;
+        this.offsetY = -targetY + this.canvas.height / 2;
+        
+        // Ограничиваем смещение границами мира
         const worldWidth = this.gridSize * this.cellSize * this.scale;
         const worldHeight = this.gridSize * this.cellSize * this.scale;
 
-        const targetX = player.x * this.cellSize * this.scale - screenWidth / 2;
-        const targetY = player.y * this.cellSize * this.scale - screenHeight / 2;
+                const minOffsetX = Math.min(0, this.canvas.width - worldWidth);
+                const minOffsetY = Math.min(0, this.canvas.height - worldHeight);
 
-        // Ограничить смещение границами мира
-        const maxOffsetX = Math.max(0, worldWidth - screenWidth);
-        const maxOffsetY = Math.max(0, worldHeight - screenHeight);
+        // ВАЖНО: сначала ограничиваем сверху, потом снизу
+        this.offsetX = Math.max(minOffsetX, this.offsetX);
+        this.offsetY = Math.max(minOffsetY, this.offsetY);
 
-        this.offsetX = Math.max(0, Math.min(maxOffsetX, targetX));
-        this.offsetY = Math.max(0, Math.min(maxOffsetY, targetY));
+        if (worldWidth > this.canvas.width) {
+            this.offsetX = Math.min(0, this.offsetX);
+        }
+        if (worldHeight > this.canvas.height) {
+            this.offsetY = Math.min(0, this.offsetY);
+        }
     }
 
     updateUI() {
