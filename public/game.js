@@ -666,16 +666,18 @@ class MagicBomberman {
         spellsPanel.innerHTML = '';
         console.log('Updating spells panel with', player.spells.length, 'spells');
 
-        // ВАЖНО: порядок снизу вверх - реверсируем массив
-        const reversedSpells = [...player.spells].reverse();
-
-        reversedSpells.forEach((spell, reversedIndex) => {
-            const originalIndex = player.spells.length - 1 - reversedIndex;
+        // ВАЖНО: правильный порядок - снизу вверх
+        // Последний элемент массива (player.spells[player.spells.length - 1]) должен быть внизу
+        // Создаем слоты в прямом порядке, но позиционируем снизу вверх через CSS
+        player.spells.forEach((spell, index) => {
             const slot = document.createElement('div');
             slot.className = `spell-slot ${spell ? 'filled' : 'empty'}`;
-            slot.dataset.index = originalIndex;
+            slot.dataset.index = index;
 
-            if (originalIndex === this.selectedSpellIndex) {
+            // ВАЖНО: добавляем порядковый номер для позиционирования
+            slot.style.order = player.spells.length - index;
+            
+            if (index === this.selectedSpellIndex) {
                 slot.classList.add('selected');
             }
 

@@ -377,13 +377,22 @@ io.on('connection', (socket) => {
     spellIndex
   }) => {
     const player = gameState.players[socket.id];
-    if (!player || player.hp <= 0 || !player.spells[spellIndex]) return;
+    // ВАЖНО: проверяем, что индекс корректный и заклинание существует
+    if (!player || player.hp <= 0 || player.spells[spellIndex] === undefined || !player.spells[spellIndex]) {
+      console.log(`Invalid cast: player=${!!player}, hp=${player?.hp}, spellIndex=${spellIndex}, spell=${player?.spells?.[spellIndex]}`);
+      return;
+    }
 
     const spell = player.spells[spellIndex];
     const now = Date.now();
 
-    // ВАЖНО: исправляем проверку кулдауна (было < spell.speed * 250)
-    if (now - player.lastCastTime < spell.speed * 250) {
+    // ВАЖНО: минимальный кулдаун 100мс для предотвращения спама
+    if (now - player.lastCastTime < 100) {
+      return;
+    }
+
+    // ВАЖНО: проверяем, что не кастуем другое заклинание
+    if (player.casting) {
       return;
     }
 
@@ -394,10 +403,18 @@ io.on('connection', (socket) => {
     };
     player.lastCastTime = now;
 
+    console.log(`Player ${player.nickname} casting ${spell.type} (speed: ${spell.speed}, power: ${spell.power})`);
+
     if (spell.type === 'shield') {
       setTimeout(() => {
-        player.shield = spell.power * 2;
-        player.casting = null;
+        // ВАЖНО: проверяем, что игрок все еще жив и кастит то же заклинание
+        if (gameState.players[socket.id] &&
+          gameState.players[socket.id].casting &&
+          gameState.players[socket.id].casting.index === spellIndex) {
+          gameState.players[socket.id].shield = spell.power * 2;
+          gameState.players[socket.id].casting = null;
+          console.log(`Shield applied to ${gameState.players[socket.id].nickname}: ${spell.power * 2} HP`);
+        }
       }, spell.speed * 250);
     }
   });
