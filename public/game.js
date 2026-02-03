@@ -605,16 +605,12 @@ class MagicBomberman {
             this.ctx.restore();
         });
     }
-
+    
     renderPlayers() {
         if (!this.gameState.players) return;
 
-        const players = Object.values(this.gameState.players);
-
-        for (let i = 0; i < players.length; i++) {
-            const player = players[i];
-
-            if (player.hp <= 0) continue;
+        for (const player of Object.values(this.gameState.players)) {
+            if (player.hp <= 0) continue; // Теперь это работает в for...of
 
             const x = player.x * this.cellSize;
             const y = player.y * this.cellSize;
