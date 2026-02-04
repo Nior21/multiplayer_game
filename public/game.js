@@ -548,8 +548,13 @@ class MagicBomberman {
 
             // ВАЖНО: пытаемся восстановить ник из localStorage
             const savedNickname = localStorage.getItem('magicBomberman_nickname');
-            if (savedNickname) {
+            if (savedNickname && savedNickname !== 'Player') {
+                // Устанавливаем ник в UI
                 document.getElementById('nickname').textContent = savedNickname;
+                // Отправляем на сервер при подключении
+                setTimeout(() => {
+                    this.socket.emit('updateNickname', savedNickname);
+                }, 100);
             }
         });
 
@@ -570,9 +575,12 @@ class MagicBomberman {
 
             // ВАЖНО: используем ник из сервера только если нет сохраненного
             const savedNickname = localStorage.getItem('magicBomberman_nickname');
-            if (!savedNickname) {
+            if (!savedNickname || savedNickname === 'Player') {
                 document.getElementById('nickname').textContent = data.nickname;
                 localStorage.setItem('magicBomberman_nickname', data.nickname);
+            } else {
+                // Уже установили при connect, но убеждаемся
+                document.getElementById('nickname').textContent = savedNickname;
             }
 
             this.centerOnPlayer();
