@@ -291,32 +291,59 @@ io.on('connection', (socket) => {
   const nickname = generateNickname();
   const color = getRandomColor();
 
-  // ИСПРАВЛЕНО: правильный начальный порядок заклинаний
-  gameState.players[socket.id] = {
-    id: socket.id,
-    x: spawnPos.x,
-    y: spawnPos.y,
-    direction: 0,
-    hp: INITIAL_PLAYER_HP,
-    shield: 0,
-    score: 0,
-    nickname: nickname,
-    color: color,
-    spells: [{
-        type: 'water',
-        speed: 5,
-        power: 6
-      },
-      {
-        type: 'shield',
-        speed: 5,
-        power: 6
-      },
-      null // Пустой слот в конце
-    ],
-    casting: null,
-    lastCastTime: 0
-  };
+  // ПРОВЕРЯЕМ: есть ли уже игрок с таким ником?
+  let existingPlayer = null;
+  for (const [id, player] of Object.entries(gameState.players)) {
+    if (player.nickname === nickname) {
+      existingPlayer = player;
+      console.log(`Found existing player with nickname ${nickname}: ${id}`);
+      break;
+    }
+  }
+
+  if (existingPlayer) {
+    // Игрок переподключается - используем его существующие данные
+    console.log(`Player ${nickname} is reconnecting`);
+    gameState.players[socket.id] = {
+      ...existingPlayer,
+      id: socket.id, // Обновляем ID
+      x: spawnPos.x,
+      y: spawnPos.y,
+      hp: existingPlayer.hp <= 0 ? INITIAL_PLAYER_HP : existingPlayer.hp,
+      casting: null
+    };
+
+    // Удаляем старую запись
+    delete gameState.players[existingPlayer.id];
+  } else {
+    // Новый игрок - создаем с дефолтными заклинаниями
+    console.log(`Player ${nickname} is new`);
+    gameState.players[socket.id] = {
+      id: socket.id,
+      x: spawnPos.x,
+      y: spawnPos.y,
+      direction: 0,
+      hp: INITIAL_PLAYER_HP,
+      shield: 0,
+      score: 0,
+      nickname: nickname,
+      color: color,
+      spells: [{
+          type: 'water',
+          speed: 5,
+          power: 6
+        },
+        {
+          type: 'shield',
+          speed: 5,
+          power: 6
+        },
+        null // Пустой слот в конце
+      ],
+      casting: null,
+      lastCastTime: 0
+    };
+  }
 
   console.log(`Player ${nickname} spawned at (${spawnPos.x}, ${spawnPos.y})`);
 
@@ -457,9 +484,17 @@ io.on('connection', (socket) => {
     if (player && index >= 0 && index < 8) {
       player.spells[index] = spell;
 
+      console.log(`[SERVER] Player ${player.nickname} updated spell at index ${index}:`, spell);
+      console.log(`[SERVER] Player's spells now:`, player.spells);
+
+      // Отправляем обновленное состояние
+      io.emit('gameState', gameState);
+
       if (player.spells.length < 8 && !player.spells.includes(null)) {
         player.spells.push(null);
       }
+    } else {
+      console.log(`[SERVER] Cannot update spell: player=${!!player}, index=${index}, valid=${index >= 0 && index < 8}`);
     }
   });
 

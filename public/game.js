@@ -44,6 +44,15 @@ class MagicBomberman {
 
     init() {
         console.log('Initializing game...');
+        console.log('LocalStorage available:', typeof localStorage !== 'undefined');
+        console.log('Current localStorage items:');
+
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key.startsWith('magicBomberman_')) {
+                console.log(`  ${key}:`, localStorage.getItem(key));
+            }
+        }
 
         // Сначала создаем fallback спрайты
         this.createFallbackSprites();
@@ -520,10 +529,15 @@ class MagicBomberman {
                 power: power
             };
 
+            console.log('Saving spell:', spell, 'at index:', this.currentConfigSpellIndex);
+
             this.socket.emit('updateSpell', {
                 index: this.currentConfigSpellIndex,
                 spell: spell
             });
+
+            // Сохраняем в localStorage после отправки на сервер
+            // Но нужно дождаться, пока сервер обновит состояние
 
             document.getElementById('spell-config-modal').classList.remove('active');
             this.currentConfigSpellIndex = null;
@@ -537,6 +551,133 @@ class MagicBomberman {
             document.getElementById('spell-config-modal').classList.remove('active');
             this.currentConfigSpellIndex = null;
             this.currentConfigSpellType = null;
+        }
+    }
+
+    saveSpellsToLocalStorage(nickname, spells) {
+        if (!nickname) {
+            console.error('Cannot save spells: no nickname');
+            return;
+        }
+
+        const key = `magicBomberman_spells_${nickname}`;
+        const spellsString = JSON.stringify(spells);
+
+        console.log(`Saving spells to localStorage [${key}]:`, spells);
+        console.log('Spells string length:', spellsString.length);
+
+        try {
+            localStorage.setItem(key, spellsString);
+            console.log(`✓ Successfully saved spells for ${nickname}`);
+
+            // Проверяем что сохранилось
+            const saved = localStorage.getItem(key);
+            console.log(`Verification - saved data length: ${saved?.length}`);
+            console.log(`Verification - data matches: ${saved === spellsString}`);
+        } catch (error) {
+            console.error('Error saving to localStorage:', error);
+        }
+    }
+
+    loadSpellsFromLocalStorage(nickname) {
+        if (!nickname) return null;
+        const saved = localStorage.getItem(`magicBomberman_spells_${nickname}`);
+        const spells = saved ? JSON.parse(saved) : null;
+        console.log(`Loaded spells for ${nickname}:`, spells);
+        return spells;
+    }
+
+    restoreSpells(nickname) {
+        console.log('=== RESTORING SPELLS FOR:', nickname, '=== Player ID:', this.playerId);
+
+        // Проверяем состояние игры
+        if (!this.gameState || !this.gameState.players || !this.gameState.players[this.playerId]) {
+            console.error('Cannot restore spells: player not in gameState');
+            return;
+        }
+
+        const savedSpells = this.loadSpellsFromLocalStorage(nickname);
+        console.log('Loaded spells from localStorage:', savedSpells);
+
+        if (savedSpells && savedSpells.length > 0) {
+            console.log(`Found ${savedSpells.length} saved spells for ${nickname}`);
+
+            // Проверяем какие заклинания нужно отправить
+            const spellsToSync = [];
+            savedSpells.forEach((spell, index) => {
+                if (spell) {
+                    spellsToSync.push({
+                        index,
+                        spell
+                    });
+                    console.log(`Will sync spell [${index}]:`, spell);
+                }
+            });
+
+            console.log(`Total spells to sync: ${spellsToSync.length}`);
+
+            if (spellsToSync.length > 0) {
+                // Синхронизируем сохраненные заклинания с сервером
+                spellsToSync.forEach(({
+                    index,
+                    spell
+                }, i) => {
+                    setTimeout(() => {
+                        console.log(`Sending spell [${index}] to server:`, spell);
+                        this.socket.emit('updateSpell', {
+                            index,
+                            spell
+                        });
+
+                        // Проверяем отправку
+                        setTimeout(() => {
+                            const currentPlayer = this.gameState?.players?. [this.playerId];
+                            if (currentPlayer && currentPlayer.spells && currentPlayer.spells[index]) {
+                                console.log(`✓ Spell [${index}] confirmed on server`);
+                            } else {
+                                console.log(`✗ Spell [${index}] NOT found on server, retrying...`);
+                                // Пробуем отправить еще раз
+                                this.socket.emit('updateSpell', {
+                                    index,
+                                    spell
+                                });
+                            }
+                        }, 500);
+                    }, i * 300); // 300мс между каждым заклинанием
+                });
+            }
+        } else {
+            console.log('No saved spells found for', nickname, 'using defaults');
+
+            // Сохраняем дефолтные заклинания
+            const defaultSpells = [{
+                    type: 'water',
+                    speed: 5,
+                    power: 6
+                },
+                {
+                    type: 'shield',
+                    speed: 5,
+                    power: 6
+                },
+                null
+            ];
+
+            this.saveSpellsToLocalStorage(nickname, defaultSpells);
+            console.log('Saved default spells for new player:', nickname);
+
+            // Синхронизируем дефолтные заклинания с сервером
+            defaultSpells.forEach((spell, index) => {
+                if (spell) {
+                    setTimeout(() => {
+                        this.socket.emit('updateSpell', {
+                            index,
+                            spell
+                        });
+                        console.log(`Synced default spell [${index}] for ${nickname}:`, spell);
+                    }, index * 300);
+                }
+            });
         }
     }
 
@@ -583,15 +724,46 @@ class MagicBomberman {
                 document.getElementById('nickname').textContent = savedNickname;
             }
 
-            this.centerOnPlayer();
+            const nickname = document.getElementById('nickname').textContent;
+            console.log('Current nickname:', nickname);
+            console.log('Player ID from server:', this.playerId);
+
+            console.log('Checking localStorage before restoration:');
+            this.checkLocalStorage();
+
+            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Увеличиваем задержку и добавляем проверку
+            setTimeout(() => {
+                // Сначала проверяем, что игрок вообще существует в gameState
+                if (!this.gameState || !this.gameState.players || !this.gameState.players[this.playerId]) {
+                    console.log('Player not yet in gameState, waiting more...');
+                    // Ждем еще и пробуем снова
+                    setTimeout(() => this.restoreSpells(nickname), 1000);
+                    return;
+                }
+
+                this.restoreSpells(nickname);
+            }, 2000); // Увеличили до 2 секунд
         });
 
         this.socket.on('gameState', (state) => {
             if (!this.gameState) {
                 console.log('Received initial game state');
             }
+
             this.gameState = state;
             this.updateUI();
+
+            // Сохраняем заклинания в localStorage при каждом обновлении состояния
+            if (this.playerId && state.players[this.playerId]) {
+                const player = state.players[this.playerId];
+                const nickname = player.nickname;
+
+                if (nickname && player.spells) {
+            console.log('Auto-saving spells for', nickname, 'spells:', player.spells);
+                    this.saveSpellsToLocalStorage(nickname, player.spells);
+                }
+            }
+
             this.updateSpellsPanel();
         });
     }
@@ -1172,6 +1344,17 @@ class MagicBomberman {
 
             this.ctx.restore();
         };
+    }
+
+    checkLocalStorage() {
+        console.log('=== CURRENT LOCALSTORAGE ===');
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key.startsWith('magicBomberman_')) {
+                console.log(`${key}:`, localStorage.getItem(key));
+            }
+        }
+        console.log('==========================');
     }
 }
 
